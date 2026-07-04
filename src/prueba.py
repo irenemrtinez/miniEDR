@@ -1,1 +1,0 @@
-print("MiniEDR is ready!")
