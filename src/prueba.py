@@ -1,0 +1,1 @@
+print("MiniEDR is ready!")
