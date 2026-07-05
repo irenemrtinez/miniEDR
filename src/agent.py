@@ -1,5 +1,7 @@
 import psutil
 import datetime
+import os
+import json
 
 def get_network_connections():
     """
@@ -47,12 +49,39 @@ def collect_running_processes():
             # Telemetry enrichment: Inject network data using the PID as the key
             info['connections'] = network_map.get(info['pid'], [])
 
+            # Convert memory from bytes to Megabytes
+            if info['memory_info']:
+                info['memory_usage_mb'] = round(info['memory_info'].rss / (1024 * 1024), 2)
+            else:
+                info['memory_usage_mb'] = 0.0
+            
+            # Delete the complex object so it doesn't crash the JSON writer later
+            del info['memory_info']
+
             process_list.append(info)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             # Skip processes that no longer exist or we don't have access to
             continue
         
     return process_list
+
+def save_telemetry_to_disk(snapshot, filename="data/telemetry.json"):
+    """
+    Saves the normalized telemetry snapshot into a structured JSON file.
+    Ensures the target folder exists before writing to prevent OS crashes.
+    """
+
+    #  create the 'data' directory if it doesn't exist yet.
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    try:
+        #safely handles opening and closing the file.
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=4)
+        print(f"[*] Telemetry snapshot saved to {filename}")
+
+    except Exception as e:
+        print(f"[!] Failed to save telemetry snapshot: {e}")
 
 if __name__ == "__main__":
     print("[*] Starting miniEDR telemetry collection test...")
@@ -71,11 +100,12 @@ if __name__ == "__main__":
         print(f"PID: {p['pid']} | Name: {p['name']} | User: {p['username']}")
         print(f"Path: {p['exe']}")
         print(f"Timestamp: {p['timestamp']}")
-        # memory_info gives rss (Resident Set Size), which is the actual RAM used
-        ram_mb = p['memory_info'].rss / (1024 * 1024) if p['memory_info'] else 0
-        print(f"CPU: {p['cpu_percent']}% | RAM: {ram_mb:.2f} MB")
+        
+        print(f"CPU: {p['cpu_percent']}% | RAM: {p['memory_usage_mb']} MB")
         
         print("Network Connections:")
         for conn in p['connections']:
             print(f"  -> {conn['local_address']} maps to {conn['remote_address']} [{conn['status']}]")
         print("-" * 70)
+    # Save the captured data to disk
+    save_telemetry_to_disk(snapshot)
