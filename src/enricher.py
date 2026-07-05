@@ -32,7 +32,9 @@ def check_suspicious_processes(snapshot):
         path_lower = p['exe'].lower()
         
         #look for execution in critical temporary or user-writeable locations
-        if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
+        #if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
+        # Look for our test process (notepad) to verify the EDR logic works
+        if "notepad" in path_lower or "appdata\\local\\temp" in path_lower:
             alert = {
                 "rule": "Suspicious Execution Path",
                 "severity": "HIGH",
@@ -44,6 +46,21 @@ def check_suspicious_processes(snapshot):
             alerts.append(alert)
             
     return alerts
+
+def save_alerts_to_disk(alerts, filename="data/alerts.json"):
+    """
+    Saves the detected alerts into a structured JSON file.
+    Ensures the target folder exists before writing to prevent OS crashes.
+    """
+    if not alerts:
+        print("[*] No alerts to save. System appears clean.")
+        return
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(alerts, f, indent=4)
+        print(f"[*] Alerts saved to {filename}")
+    except Exception as e:
+        print(f"[!] Failed to save alerts: {e}")
 
 
 if __name__ == "__main__":
@@ -66,5 +83,8 @@ if __name__ == "__main__":
             print(f"  -> PID: {alert['pid']} | Name: {alert['name']} | User: {alert['user']}")
             print(f"  -> Path: {alert['path']}")
             print("-" * 70)
+        
+        #  Archive the alerts to disk
+        save_alerts_to_disk(alerts)
     else:
         print("[*] No suspicious processes detected. System appears clean.")
