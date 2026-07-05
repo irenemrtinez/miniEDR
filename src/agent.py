@@ -2,6 +2,7 @@ import psutil
 import datetime
 import os
 import json
+import time
 
 def get_network_connections():
     """
@@ -84,28 +85,25 @@ def save_telemetry_to_disk(snapshot, filename="data/telemetry.json"):
         print(f"[!] Failed to save telemetry snapshot: {e}")
 
 if __name__ == "__main__":
-    print("[*] Starting miniEDR telemetry collection test...")
-    snapshot = collect_running_processes()
-    print(f"[*] Successfully captured {len(snapshot)} processes with performance metrics.")
-
-    # Filter processes that have active network connections
-    processes_with_net = [p for p in snapshot if p['connections']]
-    print(f"[*] Found {len(processes_with_net)} processes with active network connections.\n")
-
-    # Let's print a sample of the first 3 processes with network data to inspect the telemetry
-    print("[*] Telemetry Inspection Sample (First 3 processes with network):")
-    print("=" * 70)
+    # This interval defines how often the EDR takes a snapshot (in seconds)
+    MONITOR_INTERVAL = 15
     
-    for p in processes_with_net[:3]:
-        print(f"PID: {p['pid']} | Name: {p['name']} | User: {p['username']}")
-        print(f"Path: {p['exe']}")
-        print(f"Timestamp: {p['timestamp']}")
-        
-        print(f"CPU: {p['cpu_percent']}% | RAM: {p['memory_usage_mb']} MB")
-        
-        print("Network Connections:")
-        for conn in p['connections']:
-            print(f"  -> {conn['local_address']} maps to {conn['remote_address']} [{conn['status']}]")
-        print("-" * 70)
-    # Save the captured data to disk
-    save_telemetry_to_disk(snapshot)
+    print(f"[*] Starting miniEDR telemetry engine. Monitoring every {MONITOR_INTERVAL} seconds...")
+    print("[*] Press Ctrl+C to stop the agent safely.\n")
+
+    try:
+        while True:
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Gathering new telemetry snapshot...")
+            
+            # 1. Collect the data
+            snapshot = collect_running_processes()
+            
+            # 2. Overwrite the JSON file with fresh data
+            save_telemetry_to_disk(snapshot)
+            
+            # 3. Efficiency break: Sleep to keep CPU usage close to 0%
+            time.sleep(MONITOR_INTERVAL)
+            
+    except KeyboardInterrupt:
+        #  catches Ctrl+C cleanly without showing ugly error traces
+        print("\n[!] miniEDR Agent stopped safely by the user. Goodbye!")
