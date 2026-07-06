@@ -32,9 +32,9 @@ def check_suspicious_processes(snapshot):
         path_lower = p['exe'].lower()
         
         #look for execution in critical temporary or user-writeable locations
-        #if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
+        if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
         # Look for our test process (notepad) to verify the EDR logic works
-        if "notepad" in path_lower or "appdata\\local\\temp" in path_lower:
+        #if "notepad" in path_lower or "appdata\\local\\temp" in path_lower:
             alert = {
                 "rule": "Suspicious Execution Path",
                 "severity": "HIGH",
@@ -45,6 +45,68 @@ def check_suspicious_processes(snapshot):
             }
             alerts.append(alert)
             
+    return alerts
+
+def check_process_masquerading(snapshot):
+    """
+    Heuristic Rule: Detects processes that are masquerading as legitimate system processes.
+    This is done by checking if the process name matches a known system process but the 
+    executable path does not match the expected system directory.
+    """
+    alerts = []
+    system_processes = {
+        "explorer.exe": "C:\\Windows\\explorer.exe",
+        "svchost.exe": "C:\\Windows\\System32\\svchost.exe",
+        "lsass.exe": "C:\\Windows\\System32\\lsass.exe",
+        "services.exe": "c:\\windows\\system32",
+        "wininit.exe": "C:\\Windows\\System32\\wininit.exe",
+        "winlogon.exe": "C:\\Windows\\System32\\winlogon.exe",
+        #"notepad.exe": "C:\\Windows\\System32\\MandatorySystemFolder" # <-- bait
+    }
+
+    for p in snapshot:
+  
+        path = p.get('exe')
+        name_lower = p.get('name', '').lower()
+
+        if not path or name_lower not in system_processes:
+            continue
+        # Ensure case-insensitive matching to prevent malware evasion via random capitalization
+        path_lower = path.lower()
+        expected_path = system_processes[name_lower].lower()
+
+        if expected_path not in path_lower:
+            alert = {
+                "rule": "Process Masquerading",
+                "severity": "CRITICAL",
+                "pid": p['pid'],
+                "name": p['name'],
+                "path": p['exe'],
+                "user": p['username']
+            }
+            alerts.append(alert)
+    return alerts
+
+def check_reconnaissance_tools(snapshot):
+    """
+    Heuristic Rule: Flags the execution of reconnaissance tools.
+    Attackers frequently run these commands immediately after gaining access to map the system.
+    """
+    alerts = []
+    reconnaissance_tools = ["whoami.exe", "systeminfo.exe", "ipconfig.exe", "netstat.exe", "net.exe", "net1.exe", "tasklist.exe", "wmic.exe"]
+
+    for p in snapshot:
+        name_lower = p.get('name', '').lower()
+        if name_lower in reconnaissance_tools:
+            alert = {
+                "rule": "Reconnaissance Tool Execution",
+                "severity": "MEDIUM",
+                "pid": p['pid'],
+                "name": p['name'],
+                "path": p.get('exe', 'Unknown'),
+                "user": p.get('username', 'Unknown')
+            }
+            alerts.append(alert)
     return alerts
 
 def save_alerts_to_disk(alerts, filename="data/alerts.json"):
@@ -72,7 +134,16 @@ if __name__ == "__main__":
 
     # 2. Run heuristic checks for suspicious processes
     print("[*] Scanning telemetry for security risks...")
-    alerts = check_suspicious_processes(data)
+    alerts = []
+    
+    # Run Rule 1: Suspicious paths
+    alerts.extend(check_suspicious_processes(data))
+    
+    # Run Rule 2: Process Masquerading
+    alerts.extend(check_process_masquerading(data))
+
+    # Run Rule 3: Reconnaissance Tools (¡NUEVA!)
+    alerts.extend(check_reconnaissance_tools(data))
 
     # 3. Evaluate results and display findings
     if alerts:

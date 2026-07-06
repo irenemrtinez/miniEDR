@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miniEDR - Endpoint Protection Platform</title>
+    <!-- Tailwind CSS Engine for Enterprise Minimalist Layout -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Chart.js Engine configured for Dark Mode Telemetry -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased flex h-screen overflow-hidden">
+
+    <!-- MINIMALIST ENTERPRISE SIDEBAR -->
+    <aside class="w-60 bg-[#121214] flex flex-col justify-between shrink-0 hidden lg:flex border-r border-[#27272a]">
+        <div>
+            <!-- Sidebar Corporate Brand Header -->
+            <div class="px-6 py-5 flex items-center space-x-3 border-b border-[#27272a]">
+                <div class="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center font-bold text-white text-xs border border-zinc-700">M</div>
+                <span class="text-sm font-semibold text-white tracking-wider uppercase">miniEDR Console</span>
+            </div>
+            
+            <!-- Navigation Links -->
+            <div class="px-3 py-4 space-y-6">
+                <div>
+                    <nav class="space-y-1">
+                        <a href="#" class="flex items-center px-4 py-2 bg-[#1a1a1e] text-white rounded text-xs font-medium border border-zinc-800 transition-colors">
+                            <span>EPP Dashboard</span>
+                        </a>
+                        <p class="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-4 pt-4 mb-1">Controls</p>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Behavioral Heuristics</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Host Fleet Status</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Prevention Policies</span>
+                        </a>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-[#0e0e10] text-center text-[10px] text-zinc-600 font-mono border-t border-[#27272a]">
+            SUBSYSTEM SECURE
+        </div>
+    </aside>
+
+    <!-- MAIN APP CANVAS WINDOW -->
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        
+        <!-- CROWDSTRIKE STYLE TOP NAVIGATION BAR -->
+        <header class="bg-[#121214] h-14 px-6 flex justify-between items-center shrink-0 border-b border-[#27272a]">
+            <!-- Breadcrumbs Navigation -->
+            <div class="flex items-center space-x-3 text-xs text-zinc-500 font-medium">
+                <span class="text-zinc-300">Dashboards and reports</span>
+                <span>/</span>
+                <span class="text-zinc-400">All dashboards</span>
+                <span>/</span>
+                <span class="text-white font-semibold">EPP Dashboard</span>
+            </div>
+
+            <!-- Global Actions & Analyst Identity Context -->
+            <div class="flex items-center space-x-4">
+                <div class="relative w-48 hidden md:block">
+                    <input type="text" placeholder="Search telemetry..." class="w-full bg-[#1a1a1e] border border-[#27272a] rounded px-3 py-1 text-[11px] focus:outline-none focus:border-zinc-500 text-white placeholder-zinc-600 transition-colors">
+                </div>
+                <div class="h-6 w-px bg-[#27272a]"></div>
+                <!-- Analyst Metadata (Irene Setup) -->
+                <div class="flex items-center space-x-2">
+                    <div class="text-right">
+                        <p class="text-xs font-medium text-white leading-tight">Irene</p>
+                        <p class="text-[9px] text-zinc-500 font-mono">Customer ID: 7271f1ad</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD WORKSPACE MAIN SCROLL -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0e0e10]">
+
+            <!-- TOP GRID METRIC ROWS (Matches image_fa476a.jpg clean layouts) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Monitored Processes Frame -->
+                <div class="bg-[#1a1a1e] rounded p-5 border border-[#27272a] shadow-sm">
+                    <p class="text-xs font-medium text-zinc-400 tracking-wide">Monitored Processes</p>
+                    <h3 class="text-3xl font-light text-white tracking-tight mt-2 font-mono">{{ stats.total_processes }}</h3>
+                </div>
+                <!-- Total Logged Alert Signals Frame -->
+                <div class="bg-[#1a1a1e] rounded p-5 border border-[#27272a] shadow-sm">
+                    <p class="text-xs font-medium text-zinc-400 tracking-wide">Total Detections</p>
+                    <h3 class="text-3xl font-light text-zinc-300 tracking-tight mt-2 font-mono">{{ stats.total_alerts }}</h3>
+                </div>
+                <!-- High Severity Incidents Frame -->
+                <div class="bg-[#1a1a1e] rounded p-5 border border-[#27272a] shadow-sm border-l-2 border-l-orange-500">
+                    <p class="text-xs font-medium text-zinc-400 tracking-wide">High Severity</p>
+                    <h3 class="text-3xl font-light text-orange-500 tracking-tight mt-2 font-mono">{{ stats.high_alerts }}</h3>
+                </div>
+                <!-- Critical Priority Threat Detections Frame -->
+                <div class="bg-[#1a1a1e] rounded p-5 border border-[#27272a] shadow-sm border-l-2 border-l-red-600">
+                    <p class="text-xs font-medium text-zinc-400 tracking-wide">Critical Threats</p>
+                    <h3 class="text-3xl font-light text-red-500 tracking-tight mt-2 font-mono">{{ stats.critical_alerts }}</h3>
+                </div>
+            </div>
+
+            <!-- ANALYTICS HEURISTICS CHARTS ROW -->
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <!-- Activity Spline Stream -->
+                <div class="bg-[#1a1a1e] border border-[#27272a] rounded p-5 shadow-sm lg:col-span-3 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Activity - Detections</h2>
+                        <p class="text-[10px] text-zinc-500 font-mono mt-0.5">Real-time alert rate index</p>
+                    </div>
+                    <div class="h-56 mt-4">
+                        <canvas id="corporateTimelineChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Severity Distribution Bar Chart -->
+                <div class="bg-[#1a1a1e] border border-[#27272a] rounded p-5 shadow-sm lg:col-span-2 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Detections by Severity</h2>
+                        <p class="text-[10px] text-zinc-500 font-mono mt-0.5">Categorized structural weight</p>
+                    </div>
+                    <div class="h-56 mt-4">
+                        <canvas id="corporateSeverityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REAL-TIME SECURITY INCIDENT LOG STREAM -->
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] flex justify-between items-center bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Most Recent Detections</h2>
+                    <span class="text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded font-mono font-bold">{{ alerts|length }} Matches</span>
+                </div>
+                <div class="p-4 max-h-[320px] overflow-y-auto space-y-2">
+                    {% if not alerts %}
+                    <div class="text-center py-10 text-zinc-600 font-mono text-xs">
+                        No telemetry alerts detected on the monitored endpoint architecture.
+                    </div>
+                    {% else %}
+                        {% for alert in alerts %}
+                        <div class="p-3.5 rounded bg-[#121214] border border-[#27272a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:border-zinc-600">
+                            <div class="flex-1 min-w-0 space-y-2">
+                                <div class="flex items-center space-x-3">
+                                    <span class="w-2.5 h-2.5 rounded-sm shrink-0 {% if alert.severity == 'CRITICAL' %} bg-red-600 {% else %} bg-orange-500 {% endif %}"></span>
+                                    <span class="text-[10px] font-bold font-mono tracking-wider uppercase {% if alert.severity == 'CRITICAL' %} text-red-500 {% else %} text-orange-400 {% endif %}">
+                                        {{ alert.severity }}
+                                    </span>
+                                    <h4 class="text-xs font-semibold text-zinc-200 tracking-wide truncate">{{ alert.rule }}</h4>
+                                </div>
+                                <p class="text-[11px] text-zinc-500 font-mono bg-[#0e0e10] p-2 rounded border border-zinc-800/80 break-all">
+                                    Path: {{ alert.path }}
+                                </p>
+                            </div>
+                            <div class="text-right font-mono text-[11px] text-zinc-400 space-y-1 min-w-[150px] border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0 w-full md:w-auto">
+                                <p><span class="text-zinc-600">PID:</span> {{ alert.pid }}</p>
+                                <p class="truncate"><span class="text-zinc-600">Process:</span> {{ alert.name }}</p>
+                                <p class="text-[10px] text-zinc-500"><span class="text-zinc-600">User:</span> {{ alert.user }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- MONITORED ACTIVE PROCESS TELEMETRY SNAPSHOT -->
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Host Telemetry Flow</h2>
+                </div>
+                <div class="overflow-x-auto max-h-[280px] overflow-y-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="text-zinc-500 uppercase text-[10px] tracking-wider sticky top-0 bg-[#121214] border-b border-[#27272a] z-10">
+                            <tr>
+                                <th class="px-6 py-2.5">PID</th>
+                                <th class="px-6 py-2.5">Process Binary</th>
+                                <th class="px-6 py-2.5">Absolute Execution Path Context</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#27272a] font-mono text-zinc-300 text-[11px]">
+                            {% for p in telemetry %}
+                            <tr class="hover:bg-[#121214]/60 transition-colors">
+                                <td class="px-6 py-2 text-zinc-400 font-bold">{{ p.pid }}</td>
+                                <td class="px-6 py-2 text-white font-medium">{{ p.name }}</td>
+                                <td class="px-6 py-2 text-zinc-600 max-w-xl truncate" title="{{ p.exe }}">{{ p.exe or 'N/A' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- GRAPHICAL RENDERING LOGIC -->
+    <script>
+        const totalAlerts = {{ stats.total_alerts }};
+        const totalProcesses = {{ stats.total_processes }};
+        const highAlerts = {{ stats.high_alerts }};
+        const criticalAlerts = {{ stats.critical_alerts }};
+
+        // Render Clean Spline Timeline
+        const ctxTimeline = document.getElementById('corporateTimelineChart').getContext('2d');
+        new Chart(ctxTimeline, {
+            type: 'line',
+            data: {
+                labels: ['04:00', '08:00', '12:00', '16:00', '20:00', 'Now'],
+                datasets: [{
+                    data: [0, highAlerts, criticalAlerts, totalAlerts, totalAlerts, totalAlerts],
+                    borderColor: '#22d3ee',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#22d3ee'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#52525b', font: { size: 9 } } },
+                    y: { grid: { color: '#27272a' }, ticks: { color: '#52525b', font: { size: 9 }, stepSize: 1 } }
+                }
+            }
+        });
+
+        // Render Severity Stacked Bar
+        const ctxBar = document.getElementById('corporateSeverityChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: ['Total Alerts', 'High Risk', 'Critical'],
+                datasets: [{
+                    data: [totalAlerts, highAlerts, criticalAlerts],
+                    backgroundColor: ['#eab308', '#f97316', '#ef4444'],
+                    barThickness: 12
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#52525b', font: { size: 9 } } },
+                    y: { grid: { color: '#27272a' }, ticks: { color: '#52525b', font: { size: 9 }, stepSize: 1 } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
