@@ -1,6 +1,12 @@
 from flask import Flask, render_template
 import json
 import os
+import time
+import threading
+
+# Importamos las funciones core de tu Agente y tu Enriquecedor
+from agent import collect_running_processes, save_telemetry_to_disk
+from enricher import check_suspicious_processes, check_process_masquerading, check_reconnaissance_tools, save_alerts_to_disk
 
 app = Flask(__name__)
 
@@ -18,9 +24,35 @@ def read_json_file(file_path):
     except json.JSONDecodeError:
         print(f"Error decoding JSON from {file_path}. Returning empty list.")
         return []
+    
+def background_enrichment_loop():
+    """
+    Background thread that continuously enriches telemetry data and generates alerts.
+    This loop runs independently of the Flask web server, ensuring real-time updates.
+    """
+    while True:
+        try:
+            #1 the agent recolects the latest telemetry snapshot
+            snapshot = collect_running_processes()
+            save_telemetry_to_disk(snapshot, TELEMETRY_FILE)
+
+            #2 the enricher applies heuristic rules to detect suspicious processes
+            alerts = []
+            alerts.extend(check_suspicious_processes(snapshot))
+            alerts.extend(check_process_masquerading(snapshot)) 
+            alerts.extend(check_reconnaissance_tools(snapshot))    
+    
+            #save alerts to disk
+            with open(ALERTS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(alerts, f, indent=4)
+            print(f"[*] Background enrichment loop completed. {len(alerts)} alerts generated.")
+        except Exception as e:
+            print(f"[!] Error in background enrichment loop: {e}")
+
+        #wait for next iteration (e.g., 15 seconds)
+        time.sleep(15)
 
 @app.route('/')
-
 def dashboard():
     """
     Main web application route. Loads fresh security logs from disk,
@@ -41,6 +73,9 @@ def dashboard():
     return render_template('dashboard.html', telemetry=telemetry, alerts=alerts, stats=stats)
 
 if __name__ == "__main__":
+    bg_thread = threading.Thread(target=background_enrichment_loop, daemon=True)
+    bg_thread.start()
     print("[*] Starting miniEDR Web Dashboard on http://127.0.0.1:5000")
-    # Enable debug mode for real-time code reloading during development
-    app.run(debug=True)
+    
+    # 2. Desactivamos el reloader automático para evitar que se ejecute el hilo por duplicado
+    app.run(debug=True, use_reloader=False)
