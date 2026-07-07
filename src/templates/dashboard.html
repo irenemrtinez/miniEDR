@@ -144,8 +144,19 @@
                         <div class="p-3.5 rounded bg-[#121214] border border-[#27272a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:border-zinc-600">
                             <div class="flex-1 min-w-0 space-y-2">
                                 <div class="flex items-center space-x-3">
-                                    <span class="w-2.5 h-2.5 rounded-sm shrink-0 {% if alert.severity == 'CRITICAL' %} bg-red-600 {% else %} bg-orange-500 {% endif %}"></span>
-                                    <span class="text-[10px] font-bold font-mono tracking-wider uppercase {% if alert.severity == 'CRITICAL' %} text-red-500 {% else %} text-orange-400 {% endif %}">
+                                    <span class="w-2.5 h-2.5 rounded-sm shrink-0 
+                                        {% if alert.severity == 'CRITICAL' %} bg-red-600 
+                                        {% elif alert.severity == 'HIGH' %} bg-orange-500 
+                                        {% elif alert.severity == 'MEDIUM' %} bg-yellow-500 
+                                        {% elif alert.severity == 'LOW' %} bg-green-500 
+                                        {% else %} bg-blue-500 {% endif %}">
+                                    </span>
+                                    <span class="text-[10px] font-bold font-mono tracking-wider uppercase 
+                                        {% if alert.severity == 'CRITICAL' %} text-red-500 
+                                        {% elif alert.severity == 'HIGH' %} text-orange-400 
+                                        {% elif alert.severity == 'MEDIUM' %} text-yellow-400 
+                                        {% elif alert.severity == 'LOW' %} text-green-400 
+                                        {% else %} text-blue-400 {% endif %}">
                                         {{ alert.severity }}
                                     </span>
                                     <h4 class="text-xs font-semibold text-zinc-200 tracking-wide truncate">{{ alert.rule }}</h4>

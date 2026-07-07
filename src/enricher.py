@@ -1,3 +1,4 @@
+from importlib.resources import path
 import json
 import os
 
@@ -24,6 +25,15 @@ def check_suspicious_processes(snapshot):
     """
     alerts = []
 
+    # Expanded list of common malware staging and writable directories
+    suspicious_paths = [
+        "appdata\\local\\temp", 
+        "windows\\temp", 
+        "users\\public", 
+        "perflogs", 
+        "programdata"
+    ]
+
     for p in snapshot:
         #if processes dont have a path (like PID 4 SYSTEM) or if the path is empty, skip them
         if not p.get('exe'):
@@ -31,10 +41,8 @@ def check_suspicious_processes(snapshot):
 
         path_lower = p['exe'].lower()
         
-        #look for execution in critical temporary or user-writeable locations
-        if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
-        # Look for our test process (notepad) to verify the EDR logic works
-        #if "notepad" in path_lower or "appdata\\local\\temp" in path_lower:
+        # Check if the executable path contains any of the untrusted directories
+        if any(folder in path_lower for folder in suspicious_paths):
             alert = {
                 "rule": "Suspicious Execution Path",
                 "severity": "HIGH",
@@ -58,24 +66,26 @@ def check_process_masquerading(snapshot):
         "explorer.exe": "C:\\Windows\\explorer.exe",
         "svchost.exe": "C:\\Windows\\System32\\svchost.exe",
         "lsass.exe": "C:\\Windows\\System32\\lsass.exe",
-        "services.exe": "c:\\windows\\system32",
+        "services.exe": "C:\\Windows\\System32\\services.exe",
+        "csrss.exe": "C:\\Windows\\System32\\csrss.exe",
+        "smss.exe": "C:\\Windows\\System32\\smss.exe",
         "wininit.exe": "C:\\Windows\\System32\\wininit.exe",
         "winlogon.exe": "C:\\Windows\\System32\\winlogon.exe",
         #"notepad.exe": "C:\\Windows\\System32\\MandatorySystemFolder" # <-- bait
     }
 
     for p in snapshot:
-  
         path = p.get('exe')
         name_lower = p.get('name', '').lower()
 
         if not path or name_lower not in system_processes:
             continue
+
         # Ensure case-insensitive matching to prevent malware evasion via random capitalization
         path_lower = path.lower()
         expected_path = system_processes[name_lower].lower()
 
-        if expected_path not in path_lower:
+        if expected_path != path_lower:
             alert = {
                 "rule": "Process Masquerading",
                 "severity": "CRITICAL",
@@ -107,6 +117,56 @@ def check_reconnaissance_tools(snapshot):
                 "user": p.get('username', 'Unknown')
             }
             alerts.append(alert)
+    return alerts
+def check_double_extensions(snapshot):
+    """
+    Heuristic Rule: Detects files with double extensions, which is a common technique used by malware to disguise executable files.
+    For example, a file named "document.pdf.exe" may appear to be a harmless PDF document but is actually an executable.
+    """
+    alerts = []
+
+    # common double extension patterns
+    suspicious_patterns = [".pdf.exe", ".docx.exe", ".jpg.exe", ".png.exe", ".txt.exe", ".xls.exe","zip.exe", ".rar.exe", ".bat.exe", ".scr.exe", ".pif.exe"]
+    
+    for p in snapshot:
+        name_lower = p.get('name', '').lower()
+
+        #check if the process name ends with any of the suspicious patterns
+        if any(name_lower.endswith(pattern) for pattern in suspicious_patterns):
+            alert = {
+                "rule": "Double Extension Detected",
+                "severity": "MEDIUM",
+                "pid": p['pid'],
+                "name": p['name'],
+                "path": p.get('exe', 'Unknown'),
+                "user": p.get('username', 'Unknown')
+            }
+            alerts.append(alert)
+    return alerts
+
+def check_temp_execution(snapshot):
+    """
+    Heuristic Rule: Detects binaries executing from Windows Temporary folders.
+    Malware frequently drops and runs payloads here to bypass standard user restrictions.
+    """
+    alerts = []
+    
+    for p in snapshot:
+        path = p.get('exe')
+        if path:
+            path_lower = path.lower()
+            #  intercept execution from common temp directories
+            if "AppData\\Local\\Temp" in path_lower or "windows\\temp" in path_lower:
+                alert = {
+                    "rule": "Process Execution from Temp Directory",
+                    "severity": "LOW",  
+                    "pid": p['pid'],
+                    "name": p['name'],
+                    "path": path,
+                    "user": p.get('username', 'Unknown')
+                }
+                alerts.append(alert)
+                
     return alerts
 
 def save_alerts_to_disk(alerts, filename="data/alerts.json"):
@@ -142,8 +202,14 @@ if __name__ == "__main__":
     # Run Rule 2: Process Masquerading
     alerts.extend(check_process_masquerading(data))
 
-    # Run Rule 3: Reconnaissance Tools (¡NUEVA!)
+    # Run Rule 3: Reconnaissance Tools
     alerts.extend(check_reconnaissance_tools(data))
+
+    #Run Rule 4: Double Extensions
+    alerts.extend(check_double_extensions(data))
+
+    # Run Rule 5: Temporary Directory Execution
+    alerts.extend(check_temp_execution(data))
 
     # 3. Evaluate results and display findings
     if alerts:
