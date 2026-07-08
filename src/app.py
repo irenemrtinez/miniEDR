@@ -6,7 +6,7 @@ import threading
 
 # Importamos las funciones core de tu Agente y tu Enriquecedor
 from agent import collect_running_processes, save_telemetry_to_disk
-from enricher import check_double_extensions, check_suspicious_processes, check_process_masquerading, check_reconnaissance_tools, check_temp_execution, save_alerts_to_disk
+from enricher import check_double_extensions, check_reverse_shell, check_suspicious_processes, check_process_masquerading, check_reconnaissance_tools, check_temp_execution, save_alerts_to_disk
 
 app = Flask(__name__)
 
@@ -43,6 +43,7 @@ def background_enrichment_loop():
             alerts.extend(check_reconnaissance_tools(snapshot))    
             alerts.extend(check_double_extensions(snapshot))  
             alerts.extend(check_temp_execution(snapshot))
+            alerts.extend(check_reverse_shell(snapshot))
             #save alerts to disk
             with open(ALERTS_FILE, 'w', encoding='utf-8') as f:
                 json.dump(alerts, f, indent=4)

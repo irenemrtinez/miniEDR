@@ -169,6 +169,36 @@ def check_temp_execution(snapshot):
                 
     return alerts
 
+def check_reverse_shell(snapshot):
+    """
+    Heuristic Rule: Detects command interpreters (CMD, PowerShell, etc.) 
+    with active network connections, which strongly indicates a Reverse Shell.
+    """
+    alerts = []
+    shells = ["cmd.exe", "powershell.exe", "pwsh.exe", "PowerShell_ISE.exe", "wsl.exe"]
+
+    for p in snapshot:
+        name_lower = p.get('name', '').lower()
+
+        if name_lower in shells:
+            connections = p.get('connections', [])
+
+            for conn in connections:
+                if conn.get('status') == 'ESTABLISHED' and conn.get('remote_address'):
+                    alert = {
+                        "rule": "Reverse Shell Detected",
+                        "severity": "CRITICAL",
+                        "pid": p['pid'],
+                        "name": p['name'],
+                        "path": p.get('exe', 'Unknown'),
+                        "user": p.get('username', 'Unknown'),
+                        "remote_address": conn.get('remote_address', 'Unknown'),
+                        "remote_port": conn.get('remote_port', 'Unknown')
+                    }
+                    alerts.append(alert)
+                    break  # No need to check further connections for this process
+    return alerts   
+
 def save_alerts_to_disk(alerts, filename="data/alerts.json"):
     """
     Saves the detected alerts into a structured JSON file.
@@ -210,6 +240,9 @@ if __name__ == "__main__":
 
     # Run Rule 5: Temporary Directory Execution
     alerts.extend(check_temp_execution(data))
+
+    # Run Rule 6: Reverse Shell Detection
+    alerts.extend(check_reverse_shell(data))
 
     # 3. Evaluate results and display findings
     if alerts:
