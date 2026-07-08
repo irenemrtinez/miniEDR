@@ -199,21 +199,56 @@ def check_reverse_shell(snapshot):
                     break  # No need to check further connections for this process
     return alerts   
 
+import os
+import json
+import datetime
+
 def save_alerts_to_disk(alerts, filename="data/alerts.json"):
     """
     Saves the detected alerts into a structured JSON file.
     Ensures the target folder exists before writing to prevent OS crashes.
     """
-    if not alerts:
-        print("[*] No alerts to save. System appears clean.")
-        return
-    try:
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(alerts, f, indent=4)
-        print(f"[*] Alerts saved to {filename}")
-    except Exception as e:
-        print(f"[!] Failed to save alerts: {e}")
+    # 1. Open the file and load existing alerts if any, to avoid overwriting
+    existing_alerts = []
+    if os.path.exists(filename):
+        try: 
+            with open(filename, "r", encoding="utf-8") as f:
+                existing_alerts = json.load(f)
+        except json.JSONDecodeError:
+            print(f"[!] Failed to decode existing alerts from {filename}. Overwriting with new alerts.")
+            existing_alerts = []    
 
+    # 2. Map the NEW snapshot alerts (the ones that just arrived)
+    # Incluimos la regla para diferenciar si un mismo proceso dispara alertas distintas
+    new_snapshot_keys = {(alert['pid'], alert['name'], alert['rule']) for alert in alerts}
+
+    # 3. Update status of historical alerts
+    for alert in existing_alerts:
+        alert_key = (alert['pid'], alert['name'], alert['rule'])
+        if alert_key in new_snapshot_keys:
+            alert['status'] = 'RUNNING'
+        else:
+            alert['status'] = 'TERMINATED'  
+
+    # 4. Map what we already have in the history to avoid duplicate insertions
+    existing_keys = {(alert['pid'], alert['name'], alert['rule']) for alert in existing_alerts}
+
+    # 5. Append new alerts that are not already in the history
+    for alert in alerts:
+        alert_key = (alert['pid'], alert['name'], alert['rule'])
+        if alert_key not in existing_keys:
+            alert['status'] = 'RUNNING'
+            alert['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            existing_alerts.insert(0, alert)  # Insert new alerts at the top
+
+    # 6. Save everything back to disk
+    try:
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(existing_alerts, f, indent=4)
+        print(f"[*] Alerts saved to {filename}. Total alerts in history: {len(existing_alerts)}")
+    except Exception as e:
+        print(f"[!] Failed to save alerts to {filename}: {e}")
 
 if __name__ == "__main__":
     print("[*] Starting miniEDR Enrichment & Analysis Engine...")

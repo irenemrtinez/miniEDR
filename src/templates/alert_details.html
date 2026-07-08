@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forensic Triage - {{ details.rule }}</title>
+    <!-- Tailwind CSS Engine for Enterprise Minimalist Layout -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased min-h-screen flex flex-col justify-between p-6">
+
+    <!-- CONTAINER BOX -->
+    <div class="max-w-3xl w-full mx-auto bg-[#121214] border border-[#27272a] rounded shadow-2xl p-6 space-y-6">
+        
+        <!-- HEADER SECTION -->
+        <div class="flex justify-between items-start border-b border-[#27272a] pb-4">
+            <div>
+                <!-- Dynamic Severity Color Detection Logic -->
+                <span class="text-[10px] font-bold font-mono tracking-wider uppercase px-2.5 py-1 rounded border 
+                    {% if 'Reverse Shell' in details.rule or 'Critical' in details.rule %}
+                        bg-red-950/40 text-red-400 border-red-800/40
+                    {% else %}
+                        bg-orange-950/40 text-orange-400 border-orange-800/40
+                    {% endif %}">
+                    SECURITY INCIDENT LOG
+                </span>
+                <h1 class="text-xl font-semibold text-white mt-3 tracking-wide">{{ details.rule }}</h1>
+                <p class="text-xs text-zinc-500 font-mono mt-1">miniEDR Forensic Intelligence Inspection Report</p>
+            </div>
+            
+            <!-- Window self-close interactive helper element -->
+            <button onclick="window.close()" class="text-zinc-500 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-[#27272a] rounded cursor-pointer transition-colors">
+                ✕ CLOSE TAB
+            </button>
+        </div>
+
+        <!-- CORE FORENSIC FIELDS INFORMATION GRID -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 font-mono text-xs">
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Operational Status</span>
+                <span class="inline-block mt-1 font-bold text-[10px] px-1.5 py-0.5 rounded border 
+                    {% if details.status == 'RUNNING' %} bg-emerald-950/40 text-emerald-400 border-emerald-800/60
+                    {% else %} bg-zinc-900 text-zinc-500 border-zinc-800 {% endif %}">
+                    {{ details.status }}
+                </span>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Detection Timestamp</span>
+                <p class="text-zinc-300 mt-1.5 bg-[#1a1a1e] px-2 py-1 rounded border border-zinc-800/40 inline-block">{{ details.timestamp }}</p>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Process ID (PID)</span>
+                <p class="text-white font-bold text-sm mt-1">{{ details.pid }}</p>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Process Name Binary</span>
+                <p class="text-white font-bold text-sm mt-1">{{ details.name }}</p>
+            </div>
+
+            <div class="sm:col-span-2">
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Responsible Execution User Identity</span>
+                <p class="text-zinc-300 mt-1">{{ details.user }}</p>
+            </div>
+
+            <div class="sm:col-span-2">
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Absolute System Path Context</span>
+                <p class="text-zinc-400 bg-[#0e0e10] p-3 rounded border border-zinc-800/80 break-all mt-1.5 text-[11px] leading-relaxed">
+                    {{ details.path }}
+                </p>
+            </div>
+        </div>
+
+        <!-- TARGET CONDITIONAL NETWORK TELEMETRY COMPONENT -->
+        {% if details.remote_address and details.remote_address != '' %}
+        <div class="border-t border-[#27272a] pt-5 font-mono text-xs">
+            <span class="text-red-400 block text-[10px] uppercase font-bold tracking-wider">Active Target Network Telemetry Connection</span>
+            <div class="bg-red-950/10 border border-red-900/20 p-3.5 rounded mt-2 text-[11px]">
+                <p class="text-zinc-400 flex items-center justify-between">
+                    <span>Remote Socket Endpoint Address:</span> 
+                    <span class="text-red-400 font-bold tracking-wide bg-red-950/30 border border-red-900/40 px-2 py-0.5 rounded">{{ details.remote_address }}</span>
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- PERSISTENT SECURITY SUB-NAVBAR CONTEXT FOOTER -->
+    <footer class="text-[10px] text-zinc-600 text-center font-mono uppercase tracking-widest mt-6">
+        miniEDR Triage Subsystem • Secured Analyst Interface
+    </footer>
+
+</body>
+</html>

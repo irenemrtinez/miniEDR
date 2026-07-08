@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import json
 import os
 import time
@@ -45,12 +45,10 @@ def background_enrichment_loop():
             alerts.extend(check_temp_execution(snapshot))
             alerts.extend(check_reverse_shell(snapshot))
             #save alerts to disk
-            with open(ALERTS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(alerts, f, indent=4)
-            print(f"[*] Background enrichment loop completed. {len(alerts)} alerts generated.")
+            save_alerts_to_disk(alerts, ALERTS_FILE)
+
         except Exception as e:
             print(f"[!] Error in background enrichment loop: {e}")
-
         #wait for next iteration (e.g., 15 seconds)
         time.sleep(15)
 
@@ -73,6 +71,27 @@ def dashboard():
     }
     # render the frontend view using the Jinja2 template engine, passing in the telemetry and alert data
     return render_template('dashboard.html', telemetry=telemetry, alerts=alerts, stats=stats)
+
+@app.route('/alert/details')
+def alert_details():
+    """
+    Renders detailed forensic telemetry for a specific incident in a new tab.
+    Expects query parameters: rule, pid, name, path, user, timestamp, status, remote_address
+    """
+    # Extract query arguments sent from the dashboard frontend link
+    details = {
+        "rule": request.args.get('rule', 'N/A'),
+        "pid": request.args.get('pid', 'N/A'),
+        "name": request.args.get('name', 'N/A'),
+        "path": request.args.get('path', 'N/A'),
+        "user": request.args.get('user', 'N/A'),
+        "timestamp": request.args.get('timestamp', 'N/A'),
+        "status": request.args.get('status', 'RUNNING'),
+        "remote_address": request.args.get('remote_address')
+    }
+    
+    # Render the new dedicated forensic details template view
+    return render_template('alert_details.html', details=details)
 
 if __name__ == "__main__":
     bg_thread = threading.Thread(target=background_enrichment_loop, daemon=True)
