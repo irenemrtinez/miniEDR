@@ -1,8 +1,11 @@
 import os
 import json
+from dotenv import load_dotenv
 import requests
 
-VT_API_KEY = "" # Replace with your actual VirusTotal API key
+load_dotenv()
+
+VT_API_KEY = os.getenv("VT_API_KEY")
 VT_BASE_URL = "https://www.virustotal.com/api/v3"
 
 def check_file_hash_vt(sha256_hash):
