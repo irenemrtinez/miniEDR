@@ -161,11 +161,16 @@
                                         {{ alert.severity }}
                                     </span>
 
-                                    <!-- Operational Process Lifecycle Status Badge -->
+                                    <!-- INTEGRATED: EDR Remediation & Lifecycle Status Badge -->
                                     <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border font-bold
-                                        {% if alert.status == 'RUNNING' %} bg-emerald-950/40 text-emerald-400 border-emerald-800/60
-                                        {% else %} bg-zinc-900 text-zinc-500 border-zinc-800 {% endif %}">
-                                        {{ alert.status or 'RUNNING' }}
+                                        {% if alert.status == 'RESOLVED' %}
+                                            bg-emerald-950/40 text-emerald-400 border-emerald-800/60
+                                        {% elif alert.status == 'RUNNING' %}
+                                            bg-blue-950/40 text-blue-400 border-blue-800/60
+                                        {% else %}
+                                            bg-amber-950/40 text-amber-400 border-amber-800/60
+                                        {% endif %}">
+                                        {{ alert.status if alert.status else 'PENDING' }}
                                     </span>
                                     
                                     <!-- Chronological Metadata Stamp -->
