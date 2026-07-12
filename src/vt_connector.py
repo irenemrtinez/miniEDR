@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import json
 from dotenv import load_dotenv
@@ -10,12 +11,12 @@ VT_BASE_URL = "https://www.virustotal.com/api/v3"
 
 def check_file_hash_vt(sha256_hash):
     """
-    Queries VirusTotal intelligence using a file's SHA256 hash to retrieve its reputation and analysis results.
-    returns (is_known,positive_count) or (false,0) if not found
+    Queries VirusTotal using a file's SHA256 hash.
+    Returns a dictionary with comprehensive threat intelligence metadata.
     """
     if not VT_API_KEY:
         print("[!] VirusTotal API key is not set. Skipping VT query.")
-        return False, 0
+        return {"vt_status": "PENDING"}
     
     URL = f"{VT_BASE_URL}/files/{sha256_hash}"
     headers = {
@@ -23,28 +24,56 @@ def check_file_hash_vt(sha256_hash):
         "x-apikey": VT_API_KEY
     }
 
+    # Captured time when WE query the file for analysis
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     try:
         response = requests.get(URL, headers=headers)
         
         if response.status_code == 200:
-            #file exists in VT database, parse the JSON response to get the positive count
             data = response.json()
-            # Extract analysis detection metrics
-            stats = data.get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
-            positives = stats.get('malicious', 0)
-            print(f"[+] Hash {sha256_hash[:10]}... FOUND. Malicious detections: {positives}")
-            return True, positives
+            attributes = data.get('data', {}).get('attributes', {})
+            
+            # Extract relevant 'Everyone' attributes requested
+            stats = attributes.get('last_analysis_stats', {})
+            malicious = stats.get('malicious', 0)
+            
+            # Calculate total engines used (e.g., 62) by summing analysis stats
+            total_vendors = sum(stats.values()) if stats else 0
+            
+            # Determine the explicit EDR status based on findings
+            status = "SUSPICIOUS" if malicious > 0 else "CLEAN"
+            
+            print(f"[+] Hash {sha256_hash[:10]}... FOUND. Status: {status} ({malicious}/{total_vendors})")
+            
+            return {
+                "vt_status": status,
+                "vt_positives": malicious,
+                "vt_total_vendors": total_vendors,
+                "vt_analyzed_at": current_time,
+                "vt_first_submission": attributes.get('first_submission_date'),
+                "vt_magic": attributes.get('magic'),
+                "vt_alternative_names": attributes.get('names', [])[:3] # Keep top 3 alternative names
+            }
         
         elif response.status_code == 404:
             print(f"[*] Hash {sha256_hash[:10]}... NOT FOUND in VirusTotal database.")
-            return False, 0
+            return {
+                "vt_status": "NOT_FOUND",
+                "vt_positives": 0,
+                "vt_total_vendors": 0,
+                "vt_analyzed_at": current_time,
+                "vt_first_submission": None,
+                "vt_magic": "Unknown binary data",
+                "vt_alternative_names": []
+            }
         else:
             print(f"[!] Error querying VirusTotal: {response.status_code} - {response.text}")
-            return False, 0
+            return {"vt_status": "PENDING"}
         
     except Exception as e:
         print(f"[!] Exception occurred while querying VirusTotal: {e}")
-        return False, 0
+        return {"vt_status": "PENDING"}
     
 if __name__ == "__main__":
     print("[*] Starting VirusTotal hash check test...")

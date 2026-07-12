@@ -48,10 +48,11 @@ def process_vt_batch(telemetry_file_path):
         print(f"[*] VT Batch: Processing batch of {len(targets)} pending files...")
         
         for target_file in targets:
-            found, positives = check_file_hash_vt(target_file['sha256'])
+            # Execute our enhanced query function
+            vt_results = check_file_hash_vt(target_file['sha256'])
             
-            target_file["vt_scanned"] = True
-            target_file["vt_positives"] = positives
+            # Merge all new metadata directly into the file entry document
+            target_file.update(vt_results)
 
             # Commit updates to disk after each lookup to avoid data loss
             with open(telemetry_file_path, "w", encoding="utf-8") as f:
@@ -71,6 +72,8 @@ def background_enrichment_loop():
     Background thread that continuously enriches telemetry data and generates alerts.
     This loop runs independently of the Flask web server, ensuring real-time updates.
     """
+    target_scan_root = os.path.expanduser("~")
+
     while True:
         try:
             #1 the agent recolects the latest telemetry snapshot
@@ -88,7 +91,10 @@ def background_enrichment_loop():
             #save alerts to disk
             save_alerts_to_disk(alerts, ALERTS_FILE)
 
-            # 3. check the file telemetry for unscanned files and query VirusTotal
+            #3 Dynamic file gathering over the system root path
+            detected_files = scan_directory_executables(target_scan_root)
+            save_files_to_disk(detected_files, output_file=FILES_TELEMETRY_FILE)
+            #4check the file telemetry for unscanned files and query VirusTotal
             process_vt_batch(FILES_TELEMETRY_FILE)
 
         except Exception as e:

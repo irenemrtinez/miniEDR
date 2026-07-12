@@ -13,6 +13,15 @@ def calculate_hash(file_path):
     Reads a file in binary chunks to calculate both MD5 and SHA-256 hashes
     without overloading host memory.
     """
+    path_obj = Path(file_path)
+    
+    # Check if the file is empty or a Windows execution alias (0 bytes)
+    try:
+        if path_obj.stat().st_size == 0:
+            return None, None
+    except Exception:
+        return None, None
+    
     md5_hash = hashlib.md5()
     sha256_hash = hashlib.sha256()
 
@@ -23,6 +32,13 @@ def calculate_hash(file_path):
                 md5_hash.update(byte_block)
                 sha256_hash.update(byte_block)
             return md5_hash.hexdigest(), sha256_hash.hexdigest()
+    
+    except PermissionError:
+        # Silently log or handle restricted access without console clutter
+        return None, None
+    except OSError as e:
+        # Handles [Errno 22] for UWP Virtual Execution Aliases smoothly
+        return None, None
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
         return None, None
