@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Intel Triage - {{ details.name }}</title>
+    <!-- Tailwind CSS Engine for Enterprise Minimalist Layout -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased min-h-screen flex flex-col justify-between p-6">
+
+    <!-- CONTAINER BOX -->
+    <div class="max-w-3xl w-full mx-auto bg-[#121214] border border-[#27272a] rounded shadow-2xl p-6 space-y-6">
+        
+        <!-- HEADER SECTION -->
+        <div class="flex justify-between items-start border-b border-[#27272a] pb-4">
+            <div>
+                <span class="text-[10px] font-bold font-mono tracking-wider uppercase px-2.5 py-1 rounded border bg-red-950/40 text-red-400 border-red-800/40">
+                    STATIC FILE THREAT INTEL ALERT
+                </span>
+                <h1 class="text-xl font-semibold text-white mt-3 tracking-wide">{{ details.rule }}</h1>
+                <p class="text-xs text-zinc-500 font-mono mt-1">miniEDR Global Reputation Analysis Report</p>
+            </div>
+            
+            <button onclick="window.close()" class="text-zinc-500 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-[#27272a] rounded cursor-pointer transition-colors">
+                ✕ CLOSE TAB
+            </button>
+        </div>
+
+        <!-- VIRUSTOTAL REPUTATION CARD -->
+        <div class="bg-red-950/10 border border-red-900/30 rounded p-4 flex items-center justify-between font-mono">
+            <div>
+                <span class="text-zinc-500 text-[10px] uppercase font-bold block">VirusTotal Reputation Verdict</span>
+                <p class="text-red-400 text-lg font-bold mt-1">
+                    {{ details.positives }} / {{ details.total_vendors }} Engines Flagged Malicious
+                </p>
+            </div>
+            <div class="text-right">
+                <span class="text-zinc-500 text-[10px] uppercase font-bold block">EDR Classification</span>
+                <span class="inline-block mt-1 px-2 py-0.5 text-[11px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 rounded">
+                    {{ details.status }}
+                </span>
+            </div>
+        </div>
+
+        <!-- FILE METADATA & CRYPTOGRAPHIC HASHES GRID -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 font-mono text-xs border-b border-[#27272a] pb-6">
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">File Name</span>
+                <p class="text-white font-bold text-sm mt-1">{{ details.name }}</p>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Analysis Timestamp</span>
+                <p class="text-zinc-300 mt-1 bg-[#1a1a1e] px-2 py-1 rounded border border-zinc-800/40 inline-block">
+                    {{ details.timestamp }}
+                </p>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">File Size</span>
+                <p class="text-zinc-300 mt-1 font-semibold">{{ details.size_bytes }} bytes</p>
+            </div>
+
+            <div>
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Local Discovery Date</span>
+                <p class="text-zinc-400 mt-1">{{ details.created_at }}</p>
+            </div>
+
+            <div class="sm:col-span-2">
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">File Magic/Type Signature</span>
+                <p class="text-emerald-400 bg-emerald-950/10 border border-emerald-900/30 p-2.5 rounded mt-1.5 text-[11px]">
+                    {{ details.magic }}
+                </p>
+            </div>
+
+            <div class="sm:col-span-2">
+                <span class="text-zinc-600 block text-[10px] uppercase font-bold tracking-wider">Absolute System Path Context</span>
+                <p class="text-zinc-400 bg-[#0e0e10] p-3 rounded border border-zinc-800/80 break-all mt-1.5 text-[11px] leading-relaxed">
+                    {{ details.path }}
+                </p>
+            </div>
+        </div>
+
+        <!-- CRYPTOGRAPHIC IDENTIFIERS -->
+        <div class="space-y-3 font-mono text-xs">
+            <span class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider block">Cryptographic Fingerprints</span>
+            <div class="bg-[#1a1a1e] p-3 rounded border border-zinc-800/60 space-y-2">
+                <p class="flex justify-between items-center text-[11px]">
+                    <span class="text-zinc-500 font-bold">MD5:</span>
+                    <span class="text-zinc-400 select-all font-mono break-all">{{ details.md5 }}</span>
+                </p>
+                <p class="flex justify-between items-center text-[11px]">
+                    <span class="text-zinc-500 font-bold">SHA-256:</span>
+                    <span class="text-zinc-400 select-all font-mono break-all text-right max-w-[80%]">{{ details.sha256 }}</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- ALTERNATIVE FILENAMES OBSERVED IN THE WILD -->
+        {% if details.alternative_names %}
+        <div class="font-mono text-xs pt-2">
+            <span class="text-zinc-500 text-[10px] uppercase font-bold tracking-wider block">Known Alternative Aliases</span>
+            <div class="flex flex-wrap gap-2 mt-2">
+                {% for alias in details.alternative_names %}
+                <span class="bg-zinc-900 text-zinc-400 border border-zinc-800 px-2 py-1 rounded text-[10px]">
+                    {{ alias }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- PERSISTENT SECURITY SUB-NAVBAR CONTEXT FOOTER -->
+    <footer class="text-[10px] text-zinc-600 text-center font-mono uppercase tracking-widest mt-6">
+        miniEDR Triage Subsystem • Secured Static Analysis Interface
+    </footer>
+
+</body>
+</html>

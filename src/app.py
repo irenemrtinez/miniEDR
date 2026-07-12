@@ -6,7 +6,11 @@ import threading
 
 # Importamos las funciones core de tu Agente y tu Enriquecedor
 from agent import collect_running_processes, save_telemetry_to_disk
-from enricher import check_double_extensions, check_reverse_shell, check_suspicious_processes, check_process_masquerading, check_reconnaissance_tools, check_temp_execution, save_alerts_to_disk
+from enricher import (
+    check_double_extensions, check_reverse_shell, check_suspicious_processes, 
+    check_process_masquerading, check_reconnaissance_tools, check_temp_execution, 
+    save_alerts_to_disk, check_virustotal_malicious_files
+)
 from vt_connector import check_file_hash_vt, VT_API_KEY,VT_BASE_URL
 from file_analyzer import scan_directory_executables, save_files_to_disk
 app = Flask(__name__)
@@ -88,7 +92,9 @@ def background_enrichment_loop():
             alerts.extend(check_double_extensions(snapshot))  
             alerts.extend(check_temp_execution(snapshot))
             alerts.extend(check_reverse_shell(snapshot))
+            
             #save alerts to disk
+            alerts.extend(check_virustotal_malicious_files(FILES_TELEMETRY_FILE))
             save_alerts_to_disk(alerts, ALERTS_FILE)
 
             #3 Dynamic file gathering over the system root path
@@ -128,17 +134,54 @@ def alert_details():
     Renders detailed forensic telemetry for a specific incident in a new tab.
     Expects query parameters: rule, pid, name, path, user, timestamp, status, remote_address
     """
-    # Extract query arguments sent from the dashboard frontend link
-    details = {
-        "rule": request.args.get('rule', 'N/A'),
-        "pid": request.args.get('pid', 'N/A'),
-        "name": request.args.get('name', 'N/A'),
-        "path": request.args.get('path', 'N/A'),
-        "user": request.args.get('user', 'N/A'),
-        "timestamp": request.args.get('timestamp', 'N/A'),
-        "status": request.args.get('status', 'RUNNING'),
-        "remote_address": request.args.get('remote_address')
-    }
+    rule = request.args.get('rule', 'N/A')
+    pid = request.args.get('pid', 'N/A')
+    path = request.args.get('path', 'N/A')
+    name = request.args.get('name', 'N/A')
+    timestamp = request.args.get('timestamp', 'N/A')
+
+    # If PID is N/A, it is a static file reputation match from VirusTotal
+    if pid == "N/A" or "VirusTotal" in rule:
+        # Load the files database to extract advanced VT forensic metadata
+        files_data = read_json_file(FILES_TELEMETRY_FILE)
+        file_meta = {}
+        
+        # Search for our specific file record by absolute path match
+        for f in files_data:
+            if f.get("path") == path:
+                file_meta = f
+                break
+
+        # Build a robust metadata object for the dedicated file template
+        details = {
+            "rule": rule,
+            "name": name,
+            "path": path,
+            "timestamp": timestamp,
+            "positives": file_meta.get("vt_positives", 0),
+            "total_vendors": file_meta.get("vt_total_vendors", 0),
+            "status": file_meta.get("vt_status", "SUSPICIOUS"),
+            "magic": file_meta.get("vt_magic", "Unknown binary description"),
+            "alternative_names": file_meta.get("vt_alternative_names", []),
+            "size_bytes": file_meta.get("size_bytes", 0),
+            "md5": file_meta.get("md5", "N/A"),
+            "sha256": file_meta.get("sha256", "N/A"),
+            "created_at": file_meta.get("created_at", "N/A")
+        }
+        return render_template('file_alert_details.html', details=details)
+    
+    else:
+        # Dynamic Process Alert branch (keeps your original structure clean)
+        details = {
+            "rule": rule,
+            "pid": pid,
+            "name": name,
+            "path": path,
+            "user": request.args.get('user', 'N/A'),
+            "timestamp": timestamp,
+            "status": request.args.get('status', 'RUNNING'),
+            "remote_address": request.args.get('remote_address')
+        }
     
     # Render the new dedicated forensic details template view
     return render_template('alert_details.html', details=details)

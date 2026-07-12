@@ -83,36 +83,40 @@ if __name__ == "__main__":
         print(f"[!] Telemetry file {TELEMETRY_FILE} not found. Please run the file analyzer first.")
         exit()
 
-    # 1. read the data base file
-    with open(TELEMETRY_FILE, "r") as f:
+    # 1. Read the database file
+    with open(TELEMETRY_FILE, "r", encoding="utf-8") as f:
         telemetry_data = json.load(f)
 
-    # 2. search for the first file not scanned yet
+    # 2. Search for the first file not scanned yet
     target_file = None
-    #first search for eicar test file, if not found, then search for any unscanned file
+    # First search for eicar test file, if not found, then search for any unscanned file
     for file_entry in telemetry_data:
-        if not file_entry.get("vt_scanned", False) and ("eicar" in file_entry["name"].lower() or "test_virus_total" in file_entry["name"].lower()):
+        status = file_entry.get("vt_status", "PENDING")
+        if (status == "PENDING" or not file_entry.get("vt_status")) and "maligno" in file_entry["name"].lower():
             target_file = file_entry
-            print("[*] ¡Eicar test file found in telemetry data! Proceeding to query VirusTotal...")
+            print("[*] Target file 'maligno' prioritized in telemetry data! Proceeding to query VirusTotal...")
             break
+            
     if not target_file:
         for file_entry in telemetry_data:
-            if not file_entry.get("vt_scanned", False):
+            if file_entry.get("vt_status", "PENDING") == "PENDING":
                 target_file = file_entry
-                break # break the loop once we find the first unscanned file
+                break # Break the loop once we find the first unscanned file
     
     if not target_file:
         print("[*] No unscanned files found in telemetry data. All files have been checked against VirusTotal.")
         exit()
     else:
         print(f"[*] Found unscanned file: {target_file['path']} with SHA256: {target_file['sha256']}")
-    # 3. query VT for this file's hash
-    found, positives = check_file_hash_vt(target_file['sha256'])
-    # 4. check as scanned
-    target_file["vt_scanned"] = True
-    target_file["vt_positives"] = positives
-    # 5. save the updated telemetry data back to disk
+        
+    # 3. Query VT for this file's hash (FIXED: Now receives the complete dictionary payload)
+    vt_results = check_file_hash_vt(target_file['sha256'])
+    
+    # 4. Update the dictionary with the new structured metadata fields
+    target_file.update(vt_results)
+    
+    # 5. Save the updated telemetry data back to disk
     with open(TELEMETRY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(telemetry_data, f, indent=4)
+        json.dump(telemetry_data, f, indent=4)
             
     print("[+] Updated local database for this file.")

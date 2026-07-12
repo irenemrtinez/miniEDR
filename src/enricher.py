@@ -199,6 +199,56 @@ def check_reverse_shell(snapshot):
                     break  # No need to check further connections for this process
     return alerts   
 
+def check_virustotal_malicious_files(files_telemetry_path):
+    """
+    Evaluates analyzed files and generates security alerts for any item 
+    flagged as SUSPICIOUS by VirusTotal intelligence.
+    """
+    vt_alerts = []
+    if not os.path.exists(files_telemetry_path):
+        print(f"[!] Files telemetry not found at {files_telemetry_path}. Skipping VirusTotal alert generation.")
+        return vt_alerts
+
+    try: 
+        with open(files_telemetry_path, "r", encoding="utf-8") as f:
+            files_data = json.load(f)
+        for file_entry in files_data:
+            #trigger alert only if virus total flagged the binary as suspicious (positives > 0)
+            if file_entry.get("vt_status") == "SUSPICIOUS":
+                    positives = file_entry.get("vt_positives", 0)
+                    total = file_entry.get("vt_total_vendors", 0)     
+                    # Assign critical severity if multiple vendors flag it, otherwise high
+                    if 1 <= positives <= 4:
+                        severity = "INFO"
+                    elif 5 <= positives <= 9:
+                        severity = "LOW"
+                    elif 10 <= positives <= 29:
+                        severity = "MEDIUM"
+                    elif 30 <= positives <= 40:
+                        severity = "HIGH"
+                    else:
+                        severity = "CRITICAL"
+                     # Standardized EDR forensic alert payload
+                    alert = {
+                        "rule": "Malicious File Detected via VirusTotal",
+                        "severity": severity,
+                        "pid": "N/A",
+                        "name": file_entry.get("name"),
+                        "path": file_entry.get("path"),
+                        "user": "System (Static Analysis)",
+                        "remote_address": "N/A",
+                        "remote_port": "N/A",
+                        "status": f"DETECTED ({positives}/{total} Engines)",
+                        "timestamp": file_entry.get("vt_analyzed_at")
+                    }
+                    vt_alerts.append(alert)
+
+    except Exception as e:
+        print(f"[!] Error evaluating VirusTotal alerts in enricher: {e}")
+        
+    return vt_alerts
+
+
 import os
 import json
 import datetime
