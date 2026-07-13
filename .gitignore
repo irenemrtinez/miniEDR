@@ -5,3 +5,4 @@ venv/
 data/*.db
 data/*.json
 .env
+.miniEDR_quarantine

@@ -23,20 +23,36 @@
             </div>
             
             <!-- ACTIONS CONTAINER -->
-            <div class="flex flex-col items-end space-y-2">
+            <div class="flex flex-col items-end space-y-2 w-48">
                 <button onclick="window.close()" class="text-zinc-500 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-[#27272a] rounded cursor-pointer transition-colors w-full text-center">
                     ✕ CLOSE TAB
                 </button>
                 
                 {% if details.status == 'REMEDIATED' or details.status == 'RESOLVED' %}
-                    <!-- Si ya fue mitigado previamente -->
+                    <!-- State: Permanently deleted/mitigated -->
                     <span class="bg-emerald-950/40 text-emerald-400 border border-emerald-800 px-3 py-1.5 rounded font-mono text-[11px] font-bold tracking-wide block w-full text-center">
-                        🛡️ ASSET PURGED & RESOLVED
+                         ASSET PURGED
                     </span>
+                {% elif details.status == 'QUARANTINED' %}
+                    <!-- State: Encrypted inside our safe vault -->
+                    <span class="bg-amber-950/30 text-amber-500 border border-amber-800 px-3 py-1.5 rounded font-mono text-[11px] font-bold tracking-wide block w-full text-center opacity-70 mb-1">
+                         IN QUARANTINE VAULT
+                    </span>
+                    <!-- Permanent destruction is still allowed from quarantine -->
+                    <button id="remediate-btn" onclick="triggerFileRemediation()" class="bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 font-mono text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer transition-colors w-full text-center">
+                         PERMANENT PURGE
+                    </button>
+                    <!-- Reversible action: Decrypt and restore back to original path -->
+                    <button id="restore-btn" onclick="triggerFileRestore('{{ details.quarantine_file }}')" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-200 font-mono text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer transition-colors w-full text-center">
+                         RESTORE ASSET
+                    </button>
                 {% else %}
-                    <!-- Botón de respuesta activa del EDR -->
-                    <button id="remediate-btn" onclick="triggerFileRemediation()" class="bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 font-mono text-[11px] font-bold px-3 py-1.5 rounded cursor-pointer transition-colors tracking-wide flex items-center justify-center space-x-1 w-full">
-                        🗑 REMEDIATE: DELETE FILE
+                    <!-- State: Pending analyst triage -->
+                    <button id="quarantine-btn" onclick="triggerFileQuarantine()" class="bg-amber-950/60 hover:bg-amber-900 border border-amber-700 text-amber-200 font-mono text-[11px] font-bold px-3 py-1.5 rounded cursor-pointer transition-colors tracking-wide w-full text-center">
+                         QUARANTINE FILE
+                    </button>
+                    <button id="remediate-btn" onclick="triggerFileRemediation()" class="bg-red-950/40 hover:bg-red-900 border border-red-950 text-red-400 font-mono text-[11px] px-3 py-1.5 rounded cursor-pointer transition-colors tracking-wide w-full text-center">
+                         DELETE FILE
                     </button>
                 {% endif %}
             </div>
@@ -134,50 +150,97 @@
     </footer>
 
 <script>
+        // Active Response: Permanent and irreversible asset deletion
         function triggerFileRemediation() {
-            if (!confirm("WARNING: Are you sure you want to permanently delete this file from the system and resolve the incident? This action cannot be undone.")) {
-                return;
-            }
+            if (!confirm("WARNING: Are you sure you want to permanently delete this file from the system? This action cannot be undone.")) return;
 
             const btn = document.getElementById('remediate-btn');
-            btn.disabled = true;
+            btn.disabled = true; 
             btn.innerText = "PURGING ASSET...";
 
             fetch('/api/remediate/file', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: {{ details.path | tojson }},
-                    timestamp: {{ details.timestamp | tojson }}
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: {{ details.path | tojson }}, 
+                    timestamp: {{ details.timestamp | tojson }} 
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert("EDR Remediation Successful: The file has been physically removed from disk and marked as resolved.");
-                    
-                    // Modificar estilos del botón visualmente al instante
-                    btn.className = "bg-emerald-950/40 text-emerald-400 border border-emerald-800 px-3 py-1.5 rounded font-mono text-[11px] font-bold cursor-not-allowed w-full text-center";
-                    btn.innerText = "🛡️ ASSET PURGED & RESOLVED";
-                    btn.onclick = null; 
-
-                    // Refrescar automáticamente el Dashboard principal que está en la pestaña de atrás
-                    if (window.opener && !window.opener.closed) {
-                        window.opener.location.reload();
-                    }
-                } else {
-                    alert("Remediation failed: " + data.message);
-                    btn.disabled = false;
-                    btn.innerText = "🗑 REMEDIATE: DELETE FILE";
+                    alert("EDR Remediation Successful: File deleted permanently from disk.");
+                    // Refresh the main dashboard running in the background tab
+                    if (window.opener && !window.opener.closed) window.opener.location.reload();
+                    window.location.reload();
+                } else { 
+                    alert("Error: " + data.message); 
+                    btn.disabled = false; 
+                    btn.innerText = "DELETE FILE";
                 }
+            });
+        }
+
+        // Active Response: Symmetric encryption and isolation (Defang process)
+        function triggerFileQuarantine() {
+            if (!confirm("Secure isolating asset. The target file will be encrypted and relocated to the miniEDR secure vault. Continue?")) return;
+
+            const btn = document.getElementById('quarantine-btn');
+            btn.disabled = true; 
+            btn.innerText = "ENCRYPTING...";
+
+            fetch('/api/remediate/quarantine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: {{ details.path | tojson }}, 
+                    timestamp: {{ details.timestamp | tojson }} 
+                })
             })
-            .catch(error => {
-                console.error('Error:', error);
-                alert("Critical network communication error with miniEDR core controller.");
-                btn.disabled = false;
-                btn.innerText = "🗑 REMEDIATE: DELETE FILE";
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert("Success: File isolated. Cryptographic signature and ACL modified successfully.");
+                    // Signal background dashboard tab to refresh its state telemetry
+                    if (window.opener && !window.opener.closed) window.opener.location.reload();
+                    window.location.reload(); 
+                } else { 
+                    alert("Quarantine failed: " + data.message); 
+                    btn.disabled = false; 
+                    btn.innerText = "QUARANTINE FILE";
+                }
+            });
+        }
+
+        // Active Response Rollback: Decrypt asset and return to original context path
+        function triggerFileRestore(qFile) {
+            if (!confirm("Rollback operation: Do you want to decrypt and restore this asset to its original workspace environment?")) return;
+
+            const btn = document.getElementById('restore-btn');
+            btn.disabled = true; 
+            btn.innerText = "RESTORING...";
+
+            fetch('/api/remediate/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: {{ details.path | tojson }}, 
+                    timestamp: {{ details.timestamp | tojson }}, 
+                    quarantine_file: qFile 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert("Rollback successful: Asset restored perfectly into its original environment.");
+                    // Synchronize main dashboard timeline log
+                    if (window.opener && !window.opener.closed) window.opener.location.reload();
+                    window.location.reload();
+                } else { 
+                    alert("Restore failed: " + data.message); 
+                    btn.disabled = false; 
+                    btn.innerText = "RESTORE ASSET";
+                }
             });
         }
     </script>
