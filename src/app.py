@@ -4,7 +4,10 @@ import os
 import time
 import threading
 
-# Importamos las funciones core de tu Agente y tu Enriquecedor
+# Global lock to ensure thread-safe file operations across the Flask app and background enrichment thread
+db_lock = threading.Lock()
+
+# Import functions from other modules
 from agent import collect_running_processes, save_telemetry_to_disk
 from enricher import (
     check_double_extensions, check_reverse_shell, check_suspicious_processes, 
@@ -25,12 +28,13 @@ def read_json_file(file_path):
     """Reads a JSON file and returns its content."""
     if not os.path.exists(file_path):
         return []
-    try: 
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except json.JSONDecodeError:
-        print(f"Error decoding JSON from {file_path}. Returning empty list.")
-        return []
+    with db_lock:  # Thread safety during read operations
+        try: 
+            with open(file_path, 'r', encoding='utf-8') as file:
+                return json.load(file)
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON from {file_path}. Returning empty list.")
+            return []
 
 def process_vt_batch(telemetry_file_path):
     """
@@ -41,8 +45,10 @@ def process_vt_batch(telemetry_file_path):
         return
 
     try:
-        with open(telemetry_file_path, "r", encoding="utf-8") as f:
-            files_data = json.load(f)
+        # Secure read operation using the DB lock
+        with db_lock:
+            with open(telemetry_file_path, "r", encoding="utf-8") as f:
+                files_data = json.load(f)
 
         # Select up to 4 non-scanned files from the inventory
         targets = [f for f in files_data if not f.get("vt_scanned", False)][:4]
@@ -59,9 +65,13 @@ def process_vt_batch(telemetry_file_path):
             # Merge all new metadata directly into the file entry document
             target_file.update(vt_results)
 
+            #Mark explicitly as scanned so they are not picked up on the next batch loop
+            target_file["vt_scanned"] = True
+
             # Commit updates to disk after each lookup to avoid data loss
-            with open(telemetry_file_path, "w", encoding="utf-8") as f:
-                json.dump(files_data, f, indent=4)
+            with db_lock:
+                with open(telemetry_file_path, "w", encoding="utf-8") as f:
+                    json.dump(files_data, f, indent=4)
                 
             # Technical micro-sleep to prevent socket throttling during bursts
             time.sleep(1)

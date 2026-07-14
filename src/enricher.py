@@ -156,7 +156,7 @@ def check_temp_execution(snapshot):
         if path:
             path_lower = path.lower()
             #  intercept execution from common temp directories
-            if "AppData\\Local\\Temp" in path_lower or "windows\\temp" in path_lower:
+            if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
                 alert = {
                     "rule": "Process Execution from Temp Directory",
                     "severity": "LOW",  
