@@ -105,25 +105,38 @@ def background_enrichment_loop():
             for proc in snapshot:
                 # Format raw telemetry to match the exact keys expected by MLEnricher
                 # IsolationForest needs numerical inputs.
-                # === FIX 2: Usamos net_connections() en lugar de connections() para evitar el DeprecationWarning ===
+                # FIX 2: We use net_connections() instead of connections() to avoid DeprecationWarning
                 try:
                     p_obj = psutil.Process(proc['pid'])
                     connections = len(p_obj.net_connections())
                 except Exception:
                     connections = 0
                 
+                path_lower = str(proc.get('path', '')).lower()
+                is_temp_execution = 1 if "temp" in path_lower or "downloads" in path_lower else 0
+
+                user_lower = str(proc.get('username', '')).lower()
+                is_system_user = 1 if "system" in user_lower or "administrator" in user_lower or "root" in user_lower else 0
+
+                threads_count = proc.get('num_threads', 1)
+                threads_safe = threads_count if (threads_count and threads_count > 0) else 1
+                connection_per_thread_ratio = connections / threads_safe
+                
                 proc_features = {
                     'cpu_percent': proc.get('cpu_percent', 0.0),
                     'memory_percent': proc.get('memory_percent', 0.0),
-                    'num_threads': proc.get('num_threads', 1),
-                    'num_connections': connections
+                    'num_threads': threads_safe,
+                    'num_connections': connections,
+                    'is_temp_execution': is_temp_execution,
+                    'is_system_user': is_system_user,
+                    'connection_per_thread_ratio': connection_per_thread_ratio
                 }
                 baseline_data.append(proc_features)
         except Exception as e:
             print(f"[!] Error collecting training baseline chunk: {e}")
         time.sleep(2)
 
-    # === FIX 3: Llamamos al método desde la instancia 'ml_enricher' y no desde la clase abstracta ===
+    # === FIX 3: We call the train method from the 'ml_enricher' instance, not from the abstract class ===
     ml_enricher.train(baseline_data)
 
     # --- PHASE 2: Main EDR Monitoring and Anomaly Detection Loop ---
@@ -143,7 +156,7 @@ def background_enrichment_loop():
             alerts.extend(check_reverse_shell(snapshot))
             
             # --- PHASE 3: ML Anomaly Inference & Dataset Collection (The "Jake" Way) ---
-            # === FIX 4: Utilizamos la instancia 'ml_enricher' en todas las comprobaciones ===
+            # === FIX 4: We use the 'ml_enricher' instance to call the predict_anomaly method, not the abstract class ===
             if ml_enricher.is_trained:
                 print("[*] EDR Background Monitor: Evaluating processes with Behavior ML...")
                 for proc in snapshot:
@@ -152,13 +165,26 @@ def background_enrichment_loop():
                         connections = len(p_obj.net_connections())
                     except Exception:
                         connections = 0
+
+                    path_lower = str(proc.get('path', '')).lower()
+                    is_temp_execution = 1 if "temp" in path_lower or "downloads" in path_lower else 0
+
+                    user_lower = str(proc.get('username', '')).lower()
+                    is_system_user = 1 if "system" in user_lower or "administrator" in user_lower or "root" in user_lower else 0
+
+                    threads_count = proc.get('num_threads', 1)
+                    threads_safe = threads_count if (threads_count and threads_count > 0) else 1
+                    connection_per_thread_ratio = connections / threads_safe
                     
                     # Align dictionary keys with MLEnricher's expected numerical feature columns
                     live_feature_dict = {
                         'cpu_percent': proc.get('cpu_percent', 0.0),
                         'memory_percent': proc.get('memory_percent', 0.0),
-                        'num_threads': proc.get('num_threads', 1),
-                        'num_connections': connections
+                        'num_threads': threads_safe,
+                        'num_connections': connections,
+                        'is_temp_execution': is_temp_execution,
+                        'is_system_user': is_system_user,
+                        'connection_per_thread_ratio': connection_per_thread_ratio
                     }
 
                     # Step 5 of Scikit-Learn API: Predict anomalies on new data

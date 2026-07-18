@@ -4,7 +4,7 @@ import os
 import csv
 
 # Path where we will accumulate real telemetry for future retraining/analysis
-DATASET_PATH = os.path.join(os.path.dirname(__file__), 'data', 'features_dataset.csv')
+DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'features_dataset.csv')
 
 class MLEnricher:
     def __init__(self, contamination_rate=0.01):
@@ -16,7 +16,10 @@ class MLEnricher:
         self.model = IsolationForest(contamination=contamination_rate, random_state=42)
         self.is_trained = False
         # Define the exact features we want to extract (Feature Engineering)
-        self.feature_columns = ['cpu_percent', 'memory_percent', 'num_threads', 'num_connections']
+        self.feature_columns = ['cpu_percent', 'memory_percent', 'num_threads', 'num_connections', 'is_temp_execution','is_system_user',
+                                'connection_per_thread_ratio']
+        #processes to ignore
+        self.ignored_processes = {'System Idle Process', 'Idle', 'System', 'python.exe', 'registry'}
         
     def _feature_engineering(self, raw_processes):
         """
@@ -63,6 +66,9 @@ class MLEnricher:
         """
         if not self.is_trained:
             return False  # Do not flag alerts if the model hasn't established a baseline yet
+        
+        if str(live_process.get('name', '')).strip() in self.ignored_processes:
+            return False
 
         # Prepare the single process sample as a 2D matrix
         X_new = self._feature_engineering([live_process])
