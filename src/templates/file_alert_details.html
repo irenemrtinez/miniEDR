@@ -28,6 +28,13 @@
                     ✕ CLOSE TAB
                 </button>
                 
+                <!-- NEW: EXCLUSION CONTROL FOR REPUTATION ALERTS -->
+                {% if details.status != 'REMEDIATED' and details.status != 'EXCLUDED' %}
+                <button onclick="excludeFile()" class="text-amber-400 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-amber-700 rounded cursor-pointer transition-colors w-full text-center">
+                    + EXCLUDE FILE
+                </button>
+                {% endif %}
+                
                 {% if details.status == 'REMEDIATED' or details.status == 'RESOLVED' %}
                     <!-- State: Permanently deleted/mitigated -->
                     <span class="bg-emerald-950/40 text-emerald-400 border border-emerald-800 px-3 py-1.5 rounded font-mono text-[11px] font-bold tracking-wide block w-full text-center">
@@ -208,6 +215,34 @@
                     alert("Quarantine failed: " + data.message); 
                     btn.disabled = false; 
                     btn.innerText = "QUARANTINE FILE";
+                }
+            });
+        }
+
+        function excludeFile() {
+            // Verify triage intent before modifying global exclusions database
+            if (!confirm("Do you want to exclude this file from future threat intelligence alerts?")) return;
+
+            // Submit telemetry markers to whitelist the targeted cryptographic item
+            fetch('/api/remediate/exclude', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rule: {{ details.rule | tojson }},
+                    name: {{ details.name | tojson }},
+                    path: {{ details.path | tojson }},
+                    timestamp: {{ details.timestamp | tojson }}
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert("Static asset successfully added to exclusions.");
+                    // Refresh parent workspace parameters dynamically
+                    if (window.opener && !window.opener.closed) window.opener.location.reload();
+                    window.location.reload();
+                } else {
+                    alert("Error processing exclusion: " + data.message);
                 }
             });
         }

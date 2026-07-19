@@ -28,10 +28,21 @@
                 <p class="text-xs text-zinc-500 font-mono mt-1">miniEDR Forensic Intelligence Inspection Report</p>
             </div>
             
-            <!-- Window self-close interactive helper element -->
-            <button onclick="window.close()" class="text-zinc-500 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-[#27272a] rounded cursor-pointer transition-colors">
-                ✕ CLOSE TAB
-            </button>
+            <!-- Header action buttons -->
+            <div class="flex gap-2">
+                <!-- Add the current process to the exclusions database -->
+                <button
+                    onclick="excludeProcess()"
+                    class="text-amber-400 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-amber-700 rounded cursor-pointer transition-colors">
+                    + ADD TO EXCLUSIONS
+                </button>
+                <!-- Close the current forensic inspection window -->
+                <button
+                    onclick="window.close()"
+                    class="text-zinc-500 hover:text-white font-mono text-xs px-3 py-1.5 bg-[#1a1a1e] border border-[#27272a] rounded cursor-pointer transition-colors">
+                    ✕ CLOSE TAB
+                </button>
+            </div>
         </div>
 
         <!-- CORE FORENSIC FIELDS INFORMATION GRID -->
@@ -92,6 +103,46 @@
     <footer class="text-[10px] text-zinc-600 text-center font-mono uppercase tracking-widest mt-6">
         miniEDR Triage Subsystem • Secured Analyst Interface
     </footer>
+<script>
+        function excludeProcess() {
+            // Confirm exclusion actions before submitting payload
+            if (!confirm("Are you sure you want to add this process to the exclusions list? No further alerts will be generated for this criteria.")) return;
+
+            const btn = document.querySelector('button[onclick="excludeProcess()"]');
+            btn.disabled = true;
+            btn.innerText = "EXCLUDING...";
+
+            // Dispatches the exclusion rule to the EDR remediation backend API
+            fetch('/api/remediate/exclude', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rule: {{ details.rule | tojson }},
+                    name: {{ details.name | tojson }},
+                    path: {{ details.path | tojson }},
+                    timestamp: {{ details.timestamp | tojson }}
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert("Exclusion successfully registered. The alert status will shift to EXCLUDED.");
+                    // Synchronize and refresh the primary dashboard background window if accessible
+                    if (window.opener && !window.opener.closed) window.opener.location.reload();
+                    window.location.reload();
+                } else {
+                    alert("Exclusion pipeline failed: " + data.message);
+                    btn.disabled = false;
+                    btn.innerText = "+ ADD TO EXCLUSIONS";
+                }
+            })
+            .catch(err => {
+                alert("Network exception encountered: " + err);
+                btn.disabled = false;
+                btn.innerText = "+ ADD TO EXCLUSIONS";
+            });
+        }
+    </script>
 
 </body>
 </html>

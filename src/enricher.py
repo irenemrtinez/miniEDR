@@ -2,6 +2,32 @@ from importlib.resources import path
 import json
 import os
 
+EXCLUSIONS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'exclusions.json')
+
+def is_excluded (process_name,rule_name, process_path="N/A"):
+    """
+    Checks if an intercepted process matches an active exclusion rule in the JSON database.
+    """
+    if not os.path.exists(EXCLUSIONS_FILE):
+        print(f"[!] Exclusions file not found at {EXCLUSIONS_FILE}. No exclusions will be applied.")
+        return False
+    try:
+        with open(EXCLUSIONS_FILE, "r", encoding="utf-8") as f:
+            exclusions = json.load(f)
+        for ex in exclusions:
+            #  matches process name and the rule triggered
+            if ex.get('name') == process_name and ex.get('rule') == rule_name:
+                    # If a strict path constraint is defined, validate the path as well
+                    if ex.get('path') and ex.get('path') != "N/A":
+                        if ex.get('path').lower() == str(process_path).lower():
+                            return True
+                    else:
+                        return True
+    except Exception as e:
+        print(f"[!] Error reading exclusion list: {e}")
+    return False
+        
+
 def load_telemetry(filename="data/telemetry.json"):
     """
     Loads the telemetry data from a JSON file.
@@ -24,7 +50,7 @@ def check_suspicious_processes(snapshot):
     directories, which is a common technique used by malware to evade detection.
     """
     alerts = []
-
+    rule_name = "Suspicious Execution Path"  # Define rule_name
     # Expanded list of common malware staging and writable directories
     suspicious_paths = [
         "appdata\\local\\temp", 
@@ -40,9 +66,11 @@ def check_suspicious_processes(snapshot):
             continue
 
         path_lower = p['exe'].lower()
-        
         # Check if the executable path contains any of the untrusted directories
         if any(folder in path_lower for folder in suspicious_paths):
+            # check if the process is excluded by name, rule, and path
+            if is_excluded(p['name'], rule_name, path):
+             continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Suspicious Execution Path",
                 "severity": "HIGH",
@@ -62,6 +90,7 @@ def check_process_masquerading(snapshot):
     executable path does not match the expected system directory.
     """
     alerts = []
+    rule_name = "Process Masquerading" 
     system_processes = {
         "explorer.exe": "C:\\Windows\\explorer.exe",
         "svchost.exe": "C:\\Windows\\System32\\svchost.exe",
@@ -86,6 +115,9 @@ def check_process_masquerading(snapshot):
         expected_path = system_processes[name_lower].lower()
 
         if expected_path != path_lower:
+            # check if the process is excluded by name, rule, and path
+            if is_excluded(p['name'], rule_name, path):
+             continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Process Masquerading",
                 "severity": "CRITICAL",
@@ -103,11 +135,15 @@ def check_reconnaissance_tools(snapshot):
     Attackers frequently run these commands immediately after gaining access to map the system.
     """
     alerts = []
+    rule_name = "Reconnaissance Tool Execution"
     reconnaissance_tools = ["whoami.exe", "systeminfo.exe", "ipconfig.exe", "netstat.exe", "net.exe", "net1.exe", "tasklist.exe", "wmic.exe"]
 
     for p in snapshot:
         name_lower = p.get('name', '').lower()
         if name_lower in reconnaissance_tools:
+            # check if the process is excluded by name, rule, and path
+            if is_excluded(p['name'], rule_name, path):
+             continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Reconnaissance Tool Execution",
                 "severity": "MEDIUM",
@@ -124,6 +160,7 @@ def check_double_extensions(snapshot):
     For example, a file named "document.pdf.exe" may appear to be a harmless PDF document but is actually an executable.
     """
     alerts = []
+    rule_name = "Double Extension Detected"
 
     # common double extension patterns
     suspicious_patterns = [".pdf.exe", ".docx.exe", ".jpg.exe", ".png.exe", ".txt.exe", ".xls.exe","zip.exe", ".rar.exe", ".bat.exe", ".scr.exe", ".pif.exe"]
@@ -133,6 +170,9 @@ def check_double_extensions(snapshot):
 
         #check if the process name ends with any of the suspicious patterns
         if any(name_lower.endswith(pattern) for pattern in suspicious_patterns):
+            # check if the process is excluded by name, rule, and path
+            if is_excluded(p['name'], rule_name, path):
+             continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Double Extension Detected",
                 "severity": "MEDIUM",
@@ -150,13 +190,17 @@ def check_temp_execution(snapshot):
     Malware frequently drops and runs payloads here to bypass standard user restrictions.
     """
     alerts = []
-    
+    rule_name = "Process Execution from Temp Directory"
+
     for p in snapshot:
         path = p.get('exe')
         if path:
             path_lower = path.lower()
             #  intercept execution from common temp directories
             if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
+                # check if the process is excluded by name, rule, and path
+                if is_excluded(p['name'], rule_name, path):
+                    continue # Skip alert generation if it matches the exclusion list
                 alert = {
                     "rule": "Process Execution from Temp Directory",
                     "severity": "LOW",  
@@ -175,6 +219,7 @@ def check_reverse_shell(snapshot):
     with active network connections, which strongly indicates a Reverse Shell.
     """
     alerts = []
+    rule_name = "Reverse Shell Detected"
     shells = ["cmd.exe", "powershell.exe", "pwsh.exe", "PowerShell_ISE.exe", "wsl.exe"]
 
     for p in snapshot:
@@ -185,6 +230,9 @@ def check_reverse_shell(snapshot):
 
             for conn in connections:
                 if conn.get('status') == 'ESTABLISHED' and conn.get('remote_address'):
+                    # check if the process is excluded by name, rule, and path
+                    if is_excluded(p['name'], rule_name, path):
+                        continue # Skip alert generation if it matches the exclusion list
                     alert = {
                         "rule": "Reverse Shell Detected",
                         "severity": "CRITICAL",
@@ -205,6 +253,7 @@ def check_virustotal_malicious_files(files_telemetry_path):
     flagged as SUSPICIOUS by VirusTotal intelligence.
     """
     vt_alerts = []
+    rule_name = "Malicious File Detected via VirusTotal"
     if not os.path.exists(files_telemetry_path):
         print(f"[!] Files telemetry not found at {files_telemetry_path}. Skipping VirusTotal alert generation.")
         return vt_alerts
@@ -215,6 +264,9 @@ def check_virustotal_malicious_files(files_telemetry_path):
         for file_entry in files_data:
             #trigger alert only if virus total flagged the binary as suspicious (positives > 0)
             if file_entry.get("vt_status") == "SUSPICIOUS":
+                    # check if the process is excluded by name, rule, and path
+                    if is_excluded(p['name'], rule_name, path):
+                        continue # Skip alert generation if it matches the exclusion list
                     positives = file_entry.get("vt_positives", 0)
                     total = file_entry.get("vt_total_vendors", 0)     
                     # Assign critical severity if multiple vendors flag it, otherwise high

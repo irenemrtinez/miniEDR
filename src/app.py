@@ -14,13 +14,15 @@ from agent import collect_running_processes, save_telemetry_to_disk
 from enricher import (
     check_double_extensions, check_reverse_shell, check_suspicious_processes, 
     check_process_masquerading, check_reconnaissance_tools, check_temp_execution, 
-    save_alerts_to_disk, check_virustotal_malicious_files
+    save_alerts_to_disk, check_virustotal_malicious_files, is_excluded
 )
 from vt_connector import check_file_hash_vt, VT_API_KEY,VT_BASE_URL
 from file_analyzer import scan_directory_executables, save_files_to_disk
 from remediations import delete_file_from_disk, quarantine_file, _get_or_create_key, restore_file_from_quarantine
 from ml_detector import MLEnricher
 ml_enricher = MLEnricher(contamination_rate=0.01)
+# Path resolution for exclusions matching your project structure
+EXCLUSIONS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'exclusions.json')
 
 app = Flask(__name__)
 
@@ -92,6 +94,9 @@ def background_enrichment_loop():
     Background thread that continuously enriches telemetry data and generates alerts.
     This loop runs independently of the Flask web server, ensuring real-time updates.
     """
+    # Import the exclusion helper inside the thread loop or at the top of app.py
+    from enricher import is_excluded
+
     target_scan_root = os.path.expanduser("~")
 
     # --- PHASE 1: Baseline Acquisition (Step 4 of Scikit-Learn: Gather & Fit) ---
@@ -194,13 +199,23 @@ def background_enrichment_loop():
                     ml_enricher.save_to_dataset(live_feature_dict, label=1 if is_anomaly else 0)
 
                     if is_anomaly:
-                        print(f"[!] ML ALERT: Outlier behavior detected on process: {proc.get('name')} (PID: {proc.get('pid')})")
+                        rule_name = "Behavioral Anomaly (IsolationForest)"
+                        proc_name = proc.get('name', 'N/A')
+                        proc_path = proc.get('path', 'N/A')
+
+                        # === EXCLUSION FILTER CHECK ===
+                        # Verify if the anomaly matches a user-defined exclusion rule
+                        if is_excluded(proc_name, rule_name, proc_path):
+                            print(f"[*] ML Anomaly filtered out via active exclusion for: {proc_name}")
+                            continue # Skip generating the alert and continue checking other processes
+
+                        print(f"[!] ML ALERT: Outlier behavior detected on process: {proc_name} (PID: {proc.get('pid')})")
                         ml_alert = {
-                            "rule": "Behavioral Anomaly (IsolationForest)",
+                            "rule": rule_name,
                             "severity": "HIGH",
                             "pid": proc.get('pid', 'N/A'),
-                            "name": proc.get('name', 'N/A'),
-                            "path": proc.get('path', 'N/A'),
+                            "name": proc_name,
+                            "path": proc_path,
                             "user": proc.get('username', 'N/A'),
                             "timestamp": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
                             "status": "SUSPICIOUS",
@@ -469,6 +484,60 @@ def remediate_restore():
 
     except Exception as e:
         print(f"[!] Exception inside restore route: {e}")
+        return {"status": "error", "message": str(e)}, 500
+    
+@app.route('/api/remediate/exclude', methods=['POST'])
+def remediate_exclude():
+    """
+    EDR Active Response: Exclusion / Whitelisting Endpoint.
+    Registers an exclusion rule based on process name, specific triggered rule, or file path.
+    """
+    try:
+        data = request.get_json()
+        rule = data.get('rule')
+        name = data.get('name')
+        path = data.get('path')
+        timestamp = data.get('timestamp') 
+
+        if not rule or not name:
+            return {"status": "error", "message": "Missing required parameters (rule or name)."}, 400
+        
+        # 1. Load existing exclusions from the JSON file
+        exclusions = []
+        if os.path.exists(EXCLUSIONS_FILE):
+            try:
+                with open(EXCLUSIONS_FILE, 'r', encoding='utf-8') as f:
+                    exclusions = json.load(f)
+            except json.JSONDecodeError:
+                exclusions = []
+        
+        # 2. check for existing duplicates to prevent redundant entries
+        is_duplicate = any(
+            ex.get('rule') == rule and ex.get('name') == name and ex.get('path') == path
+            for ex in exclusions
+        )
+        if not is_duplicate:
+            new_exclusion = {
+                "rule": rule,
+                "name": name,
+                "path": path,
+                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+            }
+            exclusions.append(new_exclusion)
+            with open(EXCLUSIONS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(exclusions, f, indent=4)
+        # 3. mark the original alert as EXCLUDED in the alerts.json file
+        if timestamp:
+            alerts = read_json_file(ALERTS_FILE)
+            for alert in alerts:
+                if alert.get('rule') == rule and alert.get('name') == name and alert.get('timestamp') == timestamp:
+                    alert['status'] = 'EXCLUDED'
+            with open(ALERTS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(alerts, f, indent=4)
+        
+        return {"status": "success", "message": "Exclusion rule registered successfully."}, 200
+    except Exception as e:
+        print(f"[!] Exception inside exclusion route: {e}")
         return {"status": "error", "message": str(e)}, 500
 
 if __name__ == "__main__":
