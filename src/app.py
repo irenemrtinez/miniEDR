@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, Response
 import json
 import os
 import time
 import threading
-
 import psutil
+import csv
+import io
 
 # Global lock to ensure thread-safe file operations across the Flask app and background enrichment thread
 db_lock = threading.Lock()
@@ -88,6 +89,99 @@ def process_vt_batch(telemetry_file_path):
     except Exception as e:
         print(f"[!] Exception encountered inside VirusTotal batch module: {e}")
 
+@app.route('/api/export/detections/<format_type>', methods=['GET'])
+def export_detections(format_type):
+    """
+    Exports only threat detections and alerts to JSON or CSV format.
+    The first row in CSV corresponds strictly to table headers.
+    """
+    try:
+        alerts = read_json_file(ALERTS_FILE)
+
+        if format_type == 'json':
+            return Response(
+                json.dumps(alerts, indent=4),
+                mimetype='application/json',
+                headers={'Content-Disposition': 'attachment;filename=edr_detections.json'}
+            )
+
+        elif format_type == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            # Strict Row 1: Headers for clean data analysis in Excel/Pandas
+            writer.writerow(["Rule", "Severity", "Status", "PID", "Process Name", "Path", "User", "Timestamp", "Description"])
+            
+            for alert in alerts:
+                writer.writerow([
+                    alert.get('rule', ''),
+                    alert.get('severity', ''),
+                    alert.get('status', 'PENDING'),
+                    alert.get('pid', ''),
+                    alert.get('name', ''),
+                    alert.get('path', ''),
+                    alert.get('user', ''),
+                    alert.get('timestamp', ''),
+                    alert.get('description', '')
+                ])
+
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={'Content-Disposition': 'attachment;filename=edr_detections.csv'}
+            )
+
+        return {"status": "error", "message": "Unsupported format type."}, 400
+
+    except Exception as e:
+        print(f"[!] Error during detections export: {e}")
+        return {"status": "error", "message": str(e)}, 500
+
+
+@app.route('/api/export/processes/<format_type>', methods=['GET'])
+def export_processes(format_type):
+    """
+    Exports full active host process telemetry with extended metric fields.
+    """
+    try:
+        telemetry = read_json_file(TELEMETRY_FILE)
+
+        if format_type == 'json':
+            return Response(
+                json.dumps(telemetry, indent=4),
+                mimetype='application/json',
+                headers={'Content-Disposition': 'attachment;filename=edr_process_telemetry.json'}
+            )
+
+        elif format_type == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            # Strict Row 1: Headers for process metrics
+            writer.writerow(["PID", "Process Binary", "User Context", "CPU %", "Memory %", "Num Threads", "Execution Path"])
+            
+            for p in telemetry:
+                writer.writerow([
+                    p.get('pid', ''),
+                    p.get('name', ''),
+                    p.get('username', 'N/A'),
+                    p.get('cpu_percent', 0.0),
+                    p.get('memory_percent', 0.0),
+                    p.get('num_threads', 1),
+                    p.get('exe', p.get('path', 'N/A'))
+                ])
+
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={'Content-Disposition': 'attachment;filename=edr_process_telemetry.csv'}
+            )
+
+        return {"status": "error", "message": "Unsupported format type."}, 400
+
+    except Exception as e:
+        print(f"[!] Error during process telemetry export: {e}")
+        return {"status": "error", "message": str(e)}, 500
 
 def background_enrichment_loop():
     """
