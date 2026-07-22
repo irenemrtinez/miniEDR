@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock,mock_open
 import os
 import json
 import tempfile
@@ -16,9 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 try:
     from src.app import app, process_vt_batch, db_lock
     import src.app as flask_app
+    from src.enricher import is_excluded
 except ModuleNotFoundError:
     from app import app, process_vt_batch, db_lock
     import app as flask_app
+    from src.enricher import is_excluded
 
 
 class TestAppDashboard(unittest.TestCase):
@@ -216,6 +218,94 @@ class TestAppDashboard(unittest.TestCase):
                 updated_alerts = json.load(f)
             self.assertEqual(updated_alerts[0]["status"], "PENDING")
             self.assertNotIn("quarantine_file", updated_alerts[0])
+
+class TestExclusions(unittest.TestCase):
+
+    # ---------------------------------------------------------
+    # TESTS FOR: is_excluded
+    # ---------------------------------------------------------
+
+    @patch("os.path.exists")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_is_excluded_true_match(self, mock_file, mock_exists):
+        """
+        Verifica que si un proceso coincide exactamente con una regla de exclusión,
+        is_excluded retorne True.
+        """
+        mock_exists.return_value = True
+        fake_exclusions = json.dumps([
+            {
+                "rule": "Behavioral Anomaly (IsolationForest)",
+                "name": "python.exe",
+                "path": "C:\\Python310\\python.exe"
+            }
+        ])
+        mock_file.return_value.read.return_value = fake_exclusions
+
+        result = is_excluded(
+            process_name="python.exe",
+            rule_name="Behavioral Anomaly (IsolationForest)",
+            process_path="C:\\Python310\\python.exe"
+        )
+
+        self.assertTrue(result)
+
+    @patch("os.path.exists")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_is_excluded_false_when_no_match(self, mock_file, mock_exists):
+        """
+        Verifica que retorne False si el proceso o la regla no coinciden con las exclusiones guardadas.
+        """
+        mock_exists.return_value = True
+        fake_exclusions = json.dumps([
+            {
+                "rule": "Suspicious Process",
+                "name": "malware.exe",
+                "path": "C:\\Temp\\malware.exe"
+            }
+        ])
+        mock_file.return_value.read.return_value = fake_exclusions
+
+        result = is_excluded(
+            process_name="chrome.exe",
+            rule_name="Behavioral Anomaly (IsolationForest)",
+            process_path="C:\\Program Files\\Chrome\\chrome.exe"
+        )
+
+        self.assertFalse(result)
+
+    @patch("os.path.exists")
+    def test_is_excluded_file_does_not_exist(self, mock_exists):
+        """
+        Asegura que si el archivo exclusions.json no existe, retorne False sin fallar.
+        """
+        mock_exists.return_value = False
+
+        result = is_excluded(
+            process_name="python.exe",
+            rule_name="Behavioral Anomaly (IsolationForest)",
+            process_path="C:\\Python\\python.exe"
+        )
+
+        self.assertFalse(result)
+
+    @patch("os.path.exists")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_is_excluded_corrupt_json_handling(self, mock_file, mock_exists):
+        """
+        Asegura que si el archivo JSON de exclusiones está corrupto, la función
+        capture el JSONDecodeError y retorne False de forma segura.
+        """
+        mock_exists.return_value = True
+        mock_file.return_value.read.return_value = "INVALID_JSON_CONTENT{{{"
+
+        result = is_excluded(
+            process_name="python.exe",
+            rule_name="Behavioral Anomaly (IsolationForest)",
+            process_path="C:\\Python\\python.exe"
+        )
+
+        self.assertFalse(result)
 
 
 if __name__ == "__main__":

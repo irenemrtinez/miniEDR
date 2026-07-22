@@ -64,12 +64,13 @@ def check_suspicious_processes(snapshot):
         #if processes dont have a path (like PID 4 SYSTEM) or if the path is empty, skip them
         if not p.get('exe'):
             continue
-
-        path_lower = p['exe'].lower()
+        
+        exe_path = p['exe']  # Save the executable path
+        path_lower = exe_path.lower()
         # Check if the executable path contains any of the untrusted directories
         if any(folder in path_lower for folder in suspicious_paths):
             # check if the process is excluded by name, rule, and path
-            if is_excluded(p['name'], rule_name, path):
+            if is_excluded(p['name'], rule_name, exe_path):
              continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Suspicious Execution Path",
@@ -111,12 +112,13 @@ def check_process_masquerading(snapshot):
             continue
 
         # Ensure case-insensitive matching to prevent malware evasion via random capitalization
-        path_lower = path.lower()
+        exe_path = p['exe']  # Save the executable path
+        path_lower = exe_path.lower()
         expected_path = system_processes[name_lower].lower()
 
         if expected_path != path_lower:
             # check if the process is excluded by name, rule, and path
-            if is_excluded(p['name'], rule_name, path):
+            if is_excluded(p['name'], rule_name, exe_path):
              continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Process Masquerading",
@@ -142,7 +144,7 @@ def check_reconnaissance_tools(snapshot):
         name_lower = p.get('name', '').lower()
         if name_lower in reconnaissance_tools:
             # check if the process is excluded by name, rule, and path
-            if is_excluded(p['name'], rule_name, path):
+            if is_excluded(p['name'], rule_name, p.get('exe', 'Unknown')):
              continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Reconnaissance Tool Execution",
@@ -171,7 +173,7 @@ def check_double_extensions(snapshot):
         #check if the process name ends with any of the suspicious patterns
         if any(name_lower.endswith(pattern) for pattern in suspicious_patterns):
             # check if the process is excluded by name, rule, and path
-            if is_excluded(p['name'], rule_name, path):
+            if is_excluded(p['name'], rule_name, p.get('exe', 'Unknown')):
              continue # Skip alert generation if it matches the exclusion list
             alert = {
                 "rule": "Double Extension Detected",
@@ -195,7 +197,8 @@ def check_temp_execution(snapshot):
     for p in snapshot:
         path = p.get('exe')
         if path:
-            path_lower = path.lower()
+            exe_path = p['exe']  # Save the executable path
+            path_lower = exe_path.lower()
             #  intercept execution from common temp directories
             if "appdata\\local\\temp" in path_lower or "windows\\temp" in path_lower:
                 # check if the process is excluded by name, rule, and path
@@ -231,7 +234,7 @@ def check_reverse_shell(snapshot):
             for conn in connections:
                 if conn.get('status') == 'ESTABLISHED' and conn.get('remote_address'):
                     # check if the process is excluded by name, rule, and path
-                    if is_excluded(p['name'], rule_name, path):
+                    if is_excluded(p['name'], rule_name, p.get('exe', 'Unknown')):
                         continue # Skip alert generation if it matches the exclusion list
                     alert = {
                         "rule": "Reverse Shell Detected",
@@ -265,7 +268,7 @@ def check_virustotal_malicious_files(files_telemetry_path):
             #trigger alert only if virus total flagged the binary as suspicious (positives > 0)
             if file_entry.get("vt_status") == "SUSPICIOUS":
                     # check if the process is excluded by name, rule, and path
-                    if is_excluded(p['name'], rule_name, path):
+                    if is_excluded(file_entry.get("name"), rule_name, file_entry.get("path")):
                         continue # Skip alert generation if it matches the exclusion list
                     positives = file_entry.get("vt_positives", 0)
                     total = file_entry.get("vt_total_vendors", 0)     

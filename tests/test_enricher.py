@@ -255,6 +255,51 @@ class TestEnricherRules(unittest.TestCase):
         self.assertEqual(alert_888["status"], "RUNNING")
         self.assertEqual(alert_777["status"], "TERMINATED")
 
+    # ---------------------------------------------------------
+    # TESTS FOR: Exclusion handling in enricher rules
+    # ---------------------------------------------------------
+
+    @patch("src.enricher.is_excluded", return_value=True)
+    def test_rules_respect_exclusions(self, mock_is_excluded):
+        """Verify that security rules drop alert generation when a process matches an active exclusion rule."""
+        fake_snapshot = [
+            {"pid": 101, "name": "malware.exe", "exe": "C:\\Users\\Public\\malware.exe", "username": "Irene"}
+        ]
+        alerts = check_suspicious_processes(fake_snapshot)
+        
+        # Verify that no alert is returned because is_excluded returned True
+        self.assertEqual(len(alerts), 0)
+        mock_is_excluded.assert_called_once_with(
+            "malware.exe", 
+            "Suspicious Execution Path", 
+            "C:\\Users\\Public\\malware.exe"
+        )
+
+    @patch("src.enricher.is_excluded", return_value=True)
+    @patch("os.path.exists", return_value=True)
+    @patch("builtins.open", new_callable=mock_open)
+    def test_virustotal_respects_exclusions(self, mock_file, mock_exists, mock_is_excluded):
+        """Verify that VirusTotal malicious detections are skipped when the file is present in the exclusion list."""
+        fake_files = [
+            {
+                "name": "excluded_malware.exe", 
+                "path": "C:\\excluded_malware.exe", 
+                "vt_status": "SUSPICIOUS", 
+                "vt_positives": 15
+            }
+        ]
+        mock_file.return_value.read.return_value = json.dumps(fake_files)
+
+        alerts = check_virustotal_malicious_files("dummy_path.json")
+
+        # Verify that no alert is generated for excluded files
+        self.assertEqual(len(alerts), 0)
+        mock_is_excluded.assert_called_once_with(
+            "excluded_malware.exe", 
+            "Malicious File Detected via VirusTotal", 
+            "C:\\excluded_malware.exe"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
