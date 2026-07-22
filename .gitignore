@@ -6,4 +6,4 @@ data/*.db
 data/*.json
 .env
 .miniEDR_quarantine
-.data/*.csv
+data/*.csv
