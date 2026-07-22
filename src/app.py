@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, Response
+from flask import Flask, jsonify, render_template, request, Response
 import json
 import os
 import time
@@ -21,6 +21,10 @@ from vt_connector import check_file_hash_vt, VT_API_KEY,VT_BASE_URL
 from file_analyzer import scan_directory_executables, save_files_to_disk
 from remediations import delete_file_from_disk, quarantine_file, _get_or_create_key, restore_file_from_quarantine
 from ml_detector import MLEnricher
+from collections import Counter
+import datetime
+
+
 ml_enricher = MLEnricher(contamination_rate=0.01)
 # Path resolution for exclusions matching your project structure
 EXCLUSIONS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'exclusions.json')
@@ -351,8 +355,31 @@ def dashboard():
         "critical_alerts": sum(1 for a in alerts if a.get("severity") == "CRITICAL"),
         "high_alerts": sum(1 for a in alerts if a.get("severity") == "HIGH")
     }
+    #generate data for the graphs and timeline chart on the dashboard
+    daily_counts = Counter()
+    for alert in alerts:
+        ts = alert.get("timestamp")
+        # Ensure timestamp exists and contains a valid date format
+        if ts and ts != "N/A" and " " in str(ts):
+            try:
+                date_str = str(ts).split(" ")[0]  # Extract YYYY-MM-DD part
+                daily_counts[date_str] += 1
+            except Exception:
+                pass
+
+    # Sort detected dates chronologically
+    sorted_dates = sorted(daily_counts.keys())
+
+    # Extract dates and counts (or provide fallback if no dates exist)
+    if sorted_dates:
+        timeline_labels = sorted_dates
+        timeline_data = [daily_counts[d] for d in sorted_dates]
+    else:
+        timeline_labels = ["No Data"]
+        timeline_data = [0]
+
     # render the frontend view using the Jinja2 template engine, passing in the telemetry and alert data
-    return render_template('dashboard.html', telemetry=telemetry, alerts=alerts, stats=stats)
+    return render_template('dashboard.html', telemetry=telemetry, alerts=alerts, stats=stats, timeline_labels=timeline_labels, timeline_data=timeline_data)
 
 @app.route('/alert/details')
 def alert_details():
@@ -633,6 +660,71 @@ def remediate_exclude():
     except Exception as e:
         print(f"[!] Exception inside exclusion route: {e}")
         return {"status": "error", "message": str(e)}, 500
+
+@app.route('/exclusions')
+def exclusions_page():
+    """
+    Renders the dedicated Exclusions Vault management template.
+    Loads active whitelisted criteria from disk.
+    """
+    exclusions = read_json_file(EXCLUSIONS_FILE)
+    return render_template('exclusions.html', exclusions=exclusions)
+
+@app.route('/api/remediate/exclude/delete', methods=['POST'])
+def delete_exclusion():
+    """
+    Purges an existing entry from the exclusions dataset based on rule and name.
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Normalizamos a minúsculas y quitamos espacios invisibles para evitar fallos de formato
+        target_rule = str(data.get("rule") or "").strip().lower()
+        target_name = str(data.get("name") or "").strip().lower()
+
+        print(f"[*] Intentando borrar regla -> Rule: '{target_rule}', Name: '{target_name}'")
+
+        if not os.path.exists(EXCLUSIONS_FILE):
+            return jsonify({"status": "error", "message": "Exclusions file not found"}), 404
+
+        with db_lock:
+            with open(EXCLUSIONS_FILE, 'r', encoding='utf-8') as f:
+                try:
+                    exclusions = json.load(f)
+                except json.JSONDecodeError:
+                    exclusions = []
+
+            initial_count = len(exclusions)
+            updated_exclusions = []
+
+            for item in exclusions:
+                item_rule = str(item.get("rule") or "").strip().lower()
+                item_name = str(item.get("name") or "").strip().lower()
+
+                # SI COINCIDEN LA REGLA Y EL NOMBRE -> SE BORRA DE LA LISTA
+                if item_rule == target_rule and item_name == target_name:
+                    print(f"[+] ¡Coincidencia encontrada! Eliminando exclusión: {item.get('name')}")
+                    continue
+
+                updated_exclusions.append(item)
+
+            removed_count = initial_count - len(updated_exclusions)
+
+            if removed_count == 0:
+                print(f"[!] Advertencia: No se encontró la regla. Revisa diferencias de texto.")
+            else:
+                # Reescribimos el archivo data/exclusions.json físicamente
+                with open(EXCLUSIONS_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(updated_exclusions, f, indent=4)
+                    f.flush()
+                    os.fsync(f.fileno())
+                print(f"[+] Se eliminaron {removed_count} elemento(s). Guardado en disco OK.")
+
+        return jsonify({"status": "success", "message": f"Removed {removed_count} item(s)"})
+
+    except Exception as e:
+        print(f"[!] Error al borrar exclusión: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     bg_thread = threading.Thread(target=background_enrichment_loop, daemon=True)

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miniEDR - Exclusions Vault</title>
+    <!-- Tailwind CSS Engine for Enterprise Minimalist Layout -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased flex h-screen overflow-hidden">
+
+    <!-- MINIMALIST ENTERPRISE SIDEBAR -->
+    <aside class="w-60 bg-[#121214] flex flex-col justify-between shrink-0 hidden lg:flex border-r border-[#27272a]">
+        <div>
+            <!-- Sidebar Corporate Brand Header -->
+            <div class="px-6 py-5 flex items-center space-x-3 border-b border-[#27272a]">
+                <div class="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center font-bold text-white text-xs border border-zinc-700">M</div>
+                <span class="text-sm font-semibold text-white tracking-wider uppercase">miniEDR Console</span>
+            </div>
+            
+            <!-- Navigation Links -->
+            <div class="px-3 py-4 space-y-6">
+                <div>
+                    <nav class="space-y-1">
+                        <a href="/" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>EPP Dashboard</span>
+                        </a>
+                        <p class="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-4 pt-4 mb-1">Controls</p>
+                        <a href="/exclusions" class="flex items-center px-4 py-2 bg-[#1a1a1e] text-white rounded text-xs font-medium border border-zinc-800 transition-colors">
+                            <span>Exclusions</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Quarantine Vault</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Prevention Policies</span>
+                        </a>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-[#0e0e10] text-center text-[10px] text-zinc-600 font-mono border-t border-[#27272a]">
+            SUBSYSTEM SECURE
+        </div>
+    </aside>
+
+    <!-- MAIN APP CANVAS WINDOW -->
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        
+        <!-- TOP NAVIGATION BAR -->
+        <header class="bg-[#121214] h-14 px-6 flex justify-between items-center shrink-0 border-b border-[#27272a]">
+            <!-- Breadcrumbs Navigation -->
+            <div class="flex items-center space-x-3 text-xs text-zinc-500 font-medium">
+                <span class="text-zinc-300">Controls</span>
+                <span>/</span>
+                <span class="text-white font-semibold">Exclusions</span>
+            </div>
+
+            <!-- Analyst Context -->
+            <div class="flex items-center space-x-2">
+                <div class="text-right">
+                    <p class="text-xs font-medium text-white leading-tight">Irene</p>
+                    <p class="text-[9px] text-zinc-500 font-mono">Customer ID: 7271f1ad</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN SCROLL AREA -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0e0e10]">
+
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] flex justify-between items-center bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Active Whitelisted Rules & Assets</h2>
+                    <span class="text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded font-mono font-bold">
+                        {{ exclusions|length }} Active Rules
+                    </span>
+                </div>
+
+                <div class="p-4 space-y-3">
+                    {% if not exclusions %}
+                    <div class="text-center py-12 text-zinc-600 font-mono text-xs">
+                        No active exclusions configured in the system database.
+                    </div>
+                    {% else %}
+                        {% for item in exclusions %}
+                        <div class="p-4 rounded bg-[#121214] border border-[#27272a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:border-zinc-700 font-mono">
+                            <div class="flex-1 min-w-0 space-y-2">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] font-bold tracking-wider uppercase bg-amber-950/40 text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded">
+                                        EXCLUDED
+                                    </span>
+                                    <h4 class="text-xs font-semibold text-zinc-200 tracking-wide truncate">{{ item.rule }}</h4>
+                                    <span class="text-[10px] text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                                        Added: {{ item.timestamp or 'N/A' }}
+                                    </span>
+                                </div>
+                                <div class="text-xs text-zinc-400 space-y-1">
+                                    <p><span class="text-zinc-600">Target Name:</span> {{ item.name }}</p>
+                                    <p class="text-[11px] text-zinc-500 bg-[#0e0e10] p-2 rounded border border-zinc-800/80 break-all">
+                                        Path: {{ item.path }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Delete Action Control -->
+                            <div>
+                                <button 
+                                    onclick="removeExclusion('{{ item.rule | escape }}', '{{ item.name | escape }}', '{{ item.path | escape }}')"
+                                    class="px-3 py-1.5 text-[10px] font-bold text-red-400 border border-red-900/60 bg-red-950/20 hover:bg-red-900/40 hover:text-red-200 rounded transition-colors uppercase cursor-pointer">
+                                    REMOVE EXCLUSION
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // Trigger API endpoint to purge a registered exclusion entry
+        function removeExclusion(rule, name, path) {
+            if (!confirm("Are you sure you want to delete this exclusion rule? Threats related to this asset will be flagged again.")) return;
+
+            fetch('/api/remediate/exclude/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rule: rule, name: name, path: path })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert("Error removing exclusion: " + data.message);
+                }
+            })
+            .catch(err => alert("Network exception encountered: " + err));
+        }
+    </script>
+</body>
+</html>
