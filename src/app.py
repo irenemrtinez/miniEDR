@@ -226,6 +226,8 @@ def background_enrichment_loop():
                 connection_per_thread_ratio = connections / threads_safe
                 
                 proc_features = {
+                    'pid': proc.get('pid'),
+                    'name': proc.get('name'),
                     'cpu_percent': proc.get('cpu_percent', 0.0),
                     'memory_percent': proc.get('memory_percent', 0.0),
                     'num_threads': threads_safe,
@@ -281,6 +283,8 @@ def background_enrichment_loop():
                     
                     # Align dictionary keys with MLEnricher's expected numerical feature columns
                     live_feature_dict = {
+                        'pid': proc.get('pid'),
+                        'name': proc.get('name'),
                         'cpu_percent': proc.get('cpu_percent', 0.0),
                         'memory_percent': proc.get('memory_percent', 0.0),
                         'num_threads': threads_safe,
