@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miniEDR - Quarantine Vault</title>
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased flex h-screen overflow-hidden">
+
+    <!-- MINIMALIST ENTERPRISE SIDEBAR -->
+    <aside class="w-60 bg-[#121214] flex flex-col justify-between shrink-0 hidden lg:flex border-r border-[#27272a]">
+        <div>
+            <!-- Sidebar Header -->
+            <div class="px-6 py-5 flex items-center space-x-3 border-b border-[#27272a]">
+                <div class="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center font-bold text-white text-xs border border-zinc-700">M</div>
+                <span class="text-sm font-semibold text-white tracking-wider uppercase">miniEDR Console</span>
+            </div>
+            
+            <!-- Navigation Links -->
+            <div class="px-3 py-4 space-y-6">
+                <div>
+                    <nav class="space-y-1">
+                        <a href="/" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>EPP Dashboard</span>
+                        </a>
+                        <p class="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-4 pt-4 mb-1">Controls</p>
+                        <a href="/exclusions" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Exclusions</span>
+                        </a>
+                        <a href="/quarantine" class="flex items-center px-4 py-2 bg-[#1a1a1e] text-white rounded text-xs font-medium border border-zinc-800 transition-colors">
+                            <span>Quarantine Vault</span>
+                        </a>
+                        <a href="#" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Prevention Policies</span>
+                        </a>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-[#0e0e10] text-center text-[10px] text-zinc-600 font-mono border-t border-[#27272a]">
+            SUBSYSTEM SECURE
+        </div>
+    </aside>
+
+    <!-- MAIN WORKSPACE CONTAINING CANVAS & DRAWERS -->
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+        
+        <!-- TOP NAVIGATION BAR -->
+        <header class="bg-[#121214] h-14 px-6 flex justify-between items-center shrink-0 border-b border-[#27272a]">
+            <div class="flex items-center space-x-3 text-xs text-zinc-500 font-medium">
+                <span class="text-zinc-300">Controls</span>
+                <span>/</span>
+                <span class="text-white font-semibold">Quarantine Vault</span>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <div class="text-right">
+                    <p class="text-xs font-medium text-white leading-tight">Irene</p>
+                    <p class="text-[9px] text-zinc-500 font-mono">Customer ID: 7271f1ad</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN SCROLL AREA -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0e0e10]">
+
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] flex justify-between items-center bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Isolated & Cryptographically Secured Assets</h2>
+                    <span class="text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-2 py-0.5 rounded font-mono font-bold">
+                        {{ files|length }} Vault Items
+                    </span>
+                </div>
+
+                <div class="p-4 space-y-3">
+                    {% if not files %}
+                    <div class="text-center py-12 text-zinc-600 font-mono text-xs">
+                        No isolated threats currently inside quarantine vault (.miniEDR_quarantine).
+                    </div>
+                    {% else %}
+                        {% for f in files %}
+                        <!-- Interactive Row: Click to open side panel -->
+                        <div onclick="openDetails('{{ f.filename }}', '{{ f.size_bytes }}', '{{ f.modified_at }}', '{{ f.path | escape }}', '{{ f.original_path | escape }}')" 
+                             class="p-4 rounded bg-[#121214] border border-[#27272a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:border-amber-500/50 hover:bg-[#16161a] cursor-pointer font-mono group">
+                            <div class="flex-1 min-w-0 space-y-2">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] font-bold tracking-wider uppercase bg-amber-950/40 text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded">
+                                        QUARANTINED
+                                    </span>
+                                    <h4 class="text-xs font-semibold text-zinc-200 tracking-wide truncate group-hover:text-amber-400 transition-colors">{{ f.filename }}</h4>
+                                    <span class="text-[10px] text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                                        Isolated: {{ f.modified_at }}
+                                    </span>
+                                </div>
+                                <div class="text-xs text-zinc-400 space-y-1">
+                                    <p><span class="text-zinc-600">Size:</span> {{ f.size_bytes }} bytes</p>
+                                    <p class="text-[11px] text-zinc-500 bg-[#0e0e10] p-2 rounded border border-zinc-800/80 break-all">
+                                        Vault Location: {{ f.path }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="text-zinc-500 text-xs group-hover:text-amber-400 font-bold">
+                                View Details →
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+        </main>
+
+        <!-- RIGHT SIDE PANEL (CROWDSTRIKE DRAWER) -->
+        <div id="sideDrawer" class="fixed top-0 right-0 h-full w-96 bg-[#121214] border-l border-[#27272a] shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between font-mono">
+            
+            <!-- DRAWER HEADER -->
+            <div class="p-5 border-b border-[#27272a] flex justify-between items-center bg-[#1a1a1e]">
+                <div>
+                    <span class="text-[9px] font-bold text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded uppercase">Isolated Asset</span>
+                    <h3 id="drawerFilename" class="text-sm font-bold text-white mt-2 truncate w-72">filename.vir</h3>
+                </div>
+                <button onclick="closeDetails()" class="text-zinc-500 hover:text-white text-lg font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <!-- DRAWER CONTENT BODY -->
+            <div class="p-5 space-y-5 text-xs flex-1 overflow-y-auto">
+                <div>
+                    <span class="text-[10px] text-zinc-500 uppercase font-bold block">Status</span>
+                    <span class="inline-block mt-1 text-[10px] bg-amber-950/40 text-amber-400 border border-amber-800 px-2 py-0.5 rounded font-bold">ENCRYPTED & ISOLATED</span>
+                </div>
+
+                <div>
+                    <span class="text-[10px] text-zinc-500 uppercase font-bold block">Original Path</span>
+                    <p id="drawerOrigPath" class="text-zinc-300 bg-[#0e0e10] p-2.5 rounded border border-zinc-800 break-all mt-1">N/A</p>
+                </div>
+
+                <div>
+                    <span class="text-[10px] text-zinc-500 uppercase font-bold block">Quarantine Vault Location</span>
+                    <p id="drawerVaultPath" class="text-zinc-400 bg-[#0e0e10] p-2.5 rounded border border-zinc-800 break-all mt-1">N/A</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-[10px] text-zinc-500 uppercase font-bold block">File Size</span>
+                        <p id="drawerSize" class="text-white mt-1">0 bytes</p>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-zinc-500 uppercase font-bold block">Isolation Time</span>
+                        <p id="drawerTime" class="text-white mt-1">N/A</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DRAWER ACTION BUTTONS FOOTER -->
+            <div class="p-5 border-t border-[#27272a] bg-[#1a1a1e] space-y-2">
+                <button id="btnRestore" onclick="restoreCurrentFile()" class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-200 text-xs font-bold rounded transition-colors cursor-pointer">
+                     RESTORE
+                </button>
+                <button id="btnDelete" onclick="deleteCurrentFile()" class="w-full py-2 bg-red-950/60 hover:bg-red-900 border border-red-700 text-red-200 text-xs font-bold rounded transition-colors cursor-pointer">
+                     PERMANENT PURGE
+                </button>
+            </div>
+        </div>
+
+        <!-- OVERLAY TO CLOSE DRAWER -->
+        <div id="drawerOverlay" onclick="closeDetails()" class="fixed inset-0 bg-black/40 backdrop-blur-xs z-40 hidden"></div>
+
+    </div>
+
+    <!-- LOGIC TO CONTROL THE DRAWER & ACTIONS -->
+    <script>
+        let currentSelectedFile = null;
+
+        function openDetails(filename, size, modified, path, origPath) {
+            currentSelectedFile = { filename, size, modified, path, origPath };
+
+            document.getElementById('drawerFilename').innerText = filename;
+            document.getElementById('drawerSize').innerText = size + ' bytes';
+            document.getElementById('drawerTime').innerText = modified;
+            document.getElementById('drawerVaultPath').innerText = path;
+            document.getElementById('drawerOrigPath').innerText = origPath !== 'Unknown original path' ? origPath : 'N/A';
+
+            document.getElementById('sideDrawer').classList.remove('translate-x-full');
+            document.getElementById('drawerOverlay').classList.remove('hidden');
+        }
+
+        function closeDetails() {
+            document.getElementById('sideDrawer').classList.add('translate-x-full');
+            document.getElementById('drawerOverlay').classList.add('hidden');
+        }
+
+        function restoreCurrentFile() {
+            if (!currentSelectedFile) return;
+            const targetPath = currentSelectedFile.origPath !== 'Unknown original path' ? currentSelectedFile.origPath : prompt("Confirm original restoration path:", currentSelectedFile.path);
+            
+            if (!targetPath) return;
+
+            if (!confirm(`Do you want to decrypt and restore this file to "${targetPath}"?`)) return;
+
+            fetch('/api/remediate/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: targetPath, 
+                    quarantine_file: currentSelectedFile.filename 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    alert("File successfully restored.");
+                    window.location.reload();
+                } else {
+                    alert("Error restoring file: " + data.message);
+                }
+            });
+        }
+
+        function deleteCurrentFile() {
+            if (!currentSelectedFile) return;
+            if (!confirm(`WARNING: Permanently delete "${currentSelectedFile.filename}" from quarantine? This action cannot be undone.`)) return;
+
+            fetch('/api/remediate/file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    path: currentSelectedFile.origPath !== 'Unknown original path' ? currentSelectedFile.origPath : currentSelectedFile.path, 
+                    timestamp: currentSelectedFile.modified 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    alert("File permanently purged from system.");
+                    window.location.reload();
+                } else {
+                    alert("Error purging file: " + data.message);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

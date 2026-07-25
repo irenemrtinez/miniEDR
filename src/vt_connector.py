@@ -90,12 +90,23 @@ if __name__ == "__main__":
     # 2. Search for the first file not scanned yet
     target_file = None
     # First search for eicar test file, if not found, then search for any unscanned file
+    # Priority 1: "maligno" inside Documents folder
     for file_entry in telemetry_data:
-        status = file_entry.get("vt_status", "PENDING")
-        if (status == "PENDING" or not file_entry.get("vt_status")) and "maligno" in file_entry["name"].lower():
+        path_lower = file_entry.get("path", "").lower()
+        name_lower = file_entry.get("name", "").lower()
+        
+        if "maligno" in name_lower and ("documentos" in path_lower or "documents" in path_lower):
             target_file = file_entry
-            print("[*] Target file 'maligno' prioritized in telemetry data! Proceeding to query VirusTotal...")
+            print(f"[*] PRIORITY 1 MATCH: Found target file in Documents -> {file_entry['path']}")
             break
+
+    # Priority 2: Any "maligno" file in telemetry if P1 was not found
+    if not target_file:
+        for file_entry in telemetry_data:
+            if "maligno" in file_entry.get("name", "").lower():
+                target_file = file_entry
+                print(f"[*] PRIORITY 2 MATCH: Found 'maligno' target -> {file_entry['path']}")
+                break
             
     if not target_file:
         for file_entry in telemetry_data:

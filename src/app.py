@@ -513,7 +513,40 @@ def remediate_file():
     except Exception as e:
         print(f"[!] Exception inside app remediation route: {e}")
         return {"status": "error", "message": str(e)}, 500
-    
+
+@app.route('/quarantine')
+def quarantine_page():
+    """
+    Renders the dedicated Quarantine Vault management template.
+    Scans the physical cryptographic vault folder for isolated assets.
+    """
+    from remediations import QUARANTINE_DIR
+    quarantine_files = []
+
+    if os.path.exists(QUARANTINE_DIR):
+        try:
+            for fname in os.listdir(QUARANTINE_DIR):
+                #ignore the vault key and any hidden files
+                if fname == "vault.key" or fname.startswith("."):
+                    continue
+                fpath = os.path.join(QUARANTINE_DIR, fname)
+                if os.path.isfile(fpath):
+                    stat = os.stat(fpath)
+                    # Convert file size and modification time
+                    mod_time = datetime.datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    quarantine_files.append({
+                        "filename": fname,
+                        "size_bytes": stat.st_size,
+                        "modified_at": mod_time,
+                        "path": fpath
+                    })
+        except Exception as e:
+            print(f"[!] Error scanning quarantine directory: {e}")
+
+    return render_template('quarantine.html', files=quarantine_files)
+
+
 @app.route('/api/remediate/quarantine', methods=['POST'])
 def remediate_quarantine():
     """
