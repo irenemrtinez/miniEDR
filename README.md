@@ -51,7 +51,7 @@ Deep-dive inspection view for detected static threats, displaying file hashes, m
 
 #### Forensic Alert Details (Quarantined State)
 Updated forensic triage view showing a verified asset isolated inside the cryptographically encrypted vault.
-![Forensic Quarantined Details](docs/images/maligno.com%20detection%20after%20cuarantine.png)
+![Forensic Quarantined Details](docs/images/maligno.com_detection_after_quarantine.png)
 
 ---
 
