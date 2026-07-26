@@ -128,6 +128,8 @@ miniEDR/
 │   └── test_vt_connector.py
 │── requirements.txt               # Dependencies file
 └── README.md
+```
+
 ## Installation
 
 ### 1. Clone the Repository
