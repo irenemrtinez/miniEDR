@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miniEDR - Policy & Telemetry Settings</title>
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-[#0e0e10] text-[#d4d4d8] font-sans antialiased flex h-screen overflow-hidden">
+
+    <!-- MINIMALIST ENTERPRISE SIDEBAR -->
+    <aside class="w-60 bg-[#121214] flex flex-col justify-between shrink-0 hidden lg:flex border-r border-[#27272a]">
+        <div>
+            <!-- Sidebar Corporate Brand Header -->
+            <div class="px-6 py-5 flex items-center space-x-3 border-b border-[#27272a]">
+                <div class="w-6 h-6 bg-zinc-800 rounded flex items-center justify-center font-bold text-white text-xs border border-zinc-700">M</div>
+                <span class="text-sm font-semibold text-white tracking-wider uppercase">miniEDR Console</span>
+            </div>
+            
+            <!-- Navigation Links -->
+            <div class="px-3 py-4 space-y-6">
+                <div>
+                    <nav class="space-y-1">
+                        <a href="/" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>EPP Dashboard</span>
+                        </a>
+                        <p class="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-4 pt-4 mb-1">Controls</p>
+                        <a href="/exclusions" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Exclusions</span>
+                        </a>
+                        <a href="/quarantine" class="flex items-center px-4 py-2 text-zinc-400 hover:bg-[#1a1a1e]/60 hover:text-white rounded text-xs font-medium transition-colors">
+                            <span>Quarantine Vault</span>
+                        </a>
+                        <a href="/prevention" class="flex items-center px-4 py-2 bg-[#1a1a1e] text-white rounded text-xs font-medium border border-zinc-800 transition-colors">
+                            <span>Prevention Policies</span>
+                        </a>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <div class="p-4 bg-[#0e0e10] text-center text-[10px] text-zinc-600 font-mono border-t border-[#27272a]">
+            SUBSYSTEM SECURE
+        </div>
+    </aside>
+
+    <!-- MAIN APP CANVAS WINDOW -->
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        
+        <!-- CROWDSTRIKE STYLE TOP NAVIGATION BAR -->
+        <header class="bg-[#121214] h-14 px-6 flex justify-between items-center shrink-0 border-b border-[#27272a]">
+            <div class="flex items-center space-x-3 text-xs text-zinc-500 font-medium">
+                <span class="text-zinc-300">Controls</span>
+                <span>/</span>
+                <span class="text-white font-semibold">Prevention Policies</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="text-right">
+                        <p class="text-xs font-medium text-white leading-tight">Irene</p>
+                        <p class="text-[9px] text-zinc-500 font-mono">Customer ID: 7271f1ad</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN SCROLLABLE CONTENT -->
+        <main class="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0e0e10]">
+            
+            <!-- HEADER TITLE & SAVE BUTTON -->
+            <div class="flex justify-between items-center pb-2 border-b border-[#27272a]">
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-wide">Policy & Telemetry Settings</h1>
+                    <p class="text-xs text-zinc-500 font-mono">Configure sensor telemetry behavior and automated response thresholds.</p>
+                </div>
+                <button id="btn-save-policies" onclick="savePolicies()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded shadow transition-colors cursor-pointer">
+                    Save Changes
+                </button>
+            </div>
+
+            <!-- SECTION 1: VISIBILITY & TELEMETRY CONTROLS -->
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Visibility & Telemetry Controls</h2>
+                </div>
+                <div class="p-5 space-y-6">
+                    
+                    <!-- Toggle: Extended Process Telemetry -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-zinc-200">Extended Process Telemetry</h3>
+                            <p class="text-[11px] text-zinc-500 font-mono mt-0.5">Captures command-line arguments, loaded DLLs, and parent-child process trees.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="visibility-process-telemetry" class="sr-only peer" {% if policies.visibility_controls.extended_process_telemetry %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <hr class="border-[#27272a]">
+
+                    <!-- Toggle: Temp Directory Monitoring -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-zinc-200">Temp Directory File Monitoring</h3>
+                            <p class="text-[11px] text-zinc-500 font-mono mt-0.5">Real-time tracking of file creation and modification inside %TEMP% and /tmp.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="visibility-temp-monitoring" class="sr-only peer" {% if policies.visibility_controls.temp_directory_monitoring %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <hr class="border-[#27272a]">
+
+                    <!-- Toggle: VirusTotal Engine -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold text-zinc-200">VirusTotal Threat Intelligence Engine</h3>
+                            <p class="text-[11px] text-zinc-500 font-mono mt-0.5">Automatic hash enrichment and threat scoring via VirusTotal API integration.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="visibility-virustotal-engine" class="sr-only peer" {% if policies.visibility_controls.virustotal_intelligence %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- SECTION 2: AUTOMATED PREVENTION POLICIES -->
+            <div class="bg-[#1a1a1e] border border-[#27272a] rounded shadow-sm">
+                <div class="px-5 py-3 border-b border-[#27272a] bg-[#121214]">
+                    <h2 class="text-xs font-semibold text-white uppercase tracking-wider">Automated Prevention & Remediation Policies</h2>
+                </div>
+                <div class="p-5 space-y-6">
+
+                    <!-- Policy: Auto-Quarantine -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="max-w-xl">
+                            <h3 class="text-xs font-semibold text-zinc-200">Automated Quarantine Vault</h3>
+                            <p class="text-[11px] text-zinc-500 font-mono mt-0.5">Automatically isolates malicious executables based on alert severity threshold.</p>
+                        </div>
+                        <div class="w-full md:w-72">
+                            <label class="block text-[10px] font-mono text-zinc-400 mb-1">Enforce prevention starting from:</label>
+                            <select id="prevent-quarantine-threshold" class="w-full bg-[#121214] border border-[#27272a] rounded px-3 py-1.5 text-xs text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                                <option value="disabled" {% if policies.prevention_policies.auto_quarantine.threshold == 'disabled' %}selected{% endif %}>Disabled (Alert Only)</option>
+                                <option value="critical" {% if policies.prevention_policies.auto_quarantine.threshold == 'critical' %}selected{% endif %}>Critical Only</option>
+                                <option value="high" {% if policies.prevention_policies.auto_quarantine.threshold == 'high' %}selected{% endif %}>High & Critical</option>
+                                <option value="medium" {% if policies.prevention_policies.auto_quarantine.threshold == 'medium' %}selected{% endif %}>Medium, High & Critical</option>
+                                <option value="low" {% if policies.prevention_policies.auto_quarantine.threshold == 'low' %}selected{% endif %}>Low, Medium, High & Critical</option>
+                                <option value="informational" {% if policies.prevention_policies.auto_quarantine.threshold == 'informational' %}selected{% endif %}>All Severities (Including Informational)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <hr class="border-[#27272a]">
+
+                    <!-- Policy: Process Kill -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="max-w-xl">
+                            <h3 class="text-xs font-semibold text-zinc-200">Automated Process Termination</h3>
+                            <p class="text-[11px] text-zinc-500 font-mono mt-0.5">Forcefully terminates suspicious processes (PID) upon alert generation.</p>
+                        </div>
+                        <div class="w-full md:w-72">
+                            <label class="block text-[10px] font-mono text-zinc-400 mb-1">Enforce prevention starting from:</label>
+                            <select id="prevent-kill-threshold" class="w-full bg-[#121214] border border-[#27272a] rounded px-3 py-1.5 text-xs text-red-400 font-mono focus:outline-none focus:border-red-500">
+                                <option value="disabled" {% if policies.prevention_policies.auto_process_kill.threshold == 'disabled' %}selected{% endif %}>Disabled (Alert Only)</option>
+                                <option value="critical" {% if policies.prevention_policies.auto_process_kill.threshold == 'critical' %}selected{% endif %}>Critical Only</option>
+                                <option value="high" {% if policies.prevention_policies.auto_process_kill.threshold == 'high' %}selected{% endif %}>High & Critical</option>
+                                <option value="medium" {% if policies.prevention_policies.auto_process_kill.threshold == 'medium' %}selected{% endif %}>Medium, High & Critical</option>
+                                <option value="low" {% if policies.prevention_policies.auto_process_kill.threshold == 'low' %}selected{% endif %}>Low, Medium, High & Critical</option>
+                                <option value="informational" {% if policies.prevention_policies.auto_process_kill.threshold == 'informational' %}selected{% endif %}>All Severities (Including Informational)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+function savePolicies() {
+    // 1. Get the current state of the checkboxes and select inputs
+    const payload = {
+        "visibility_controls": {
+            "extended_process_telemetry": document.getElementById('visibility-process-telemetry').checked,
+            "temp_directory_monitoring": document.getElementById('visibility-temp-monitoring').checked,
+            "virustotal_intelligence": document.getElementById('visibility-virustotal-engine').checked
+        },
+        "prevention_policies": {
+            "auto_quarantine": { 
+                "threshold": document.getElementById('prevent-quarantine-threshold').value 
+            },
+            "auto_process_kill": { 
+                "threshold": document.getElementById('prevent-kill-threshold').value 
+            }
+        }
+    };
+
+    // 2. send the payload to the backend API endpoint
+    fetch('/api/policies/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Configuration saved successfully!');
+        } else {
+            alert('Error while saving configuration: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error while trying to save the configuration: ' + error.message);
+    });
+}
+</script>
