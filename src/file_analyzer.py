@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from flask import json
-
+from prevention_policies import read_policies
 # Target extensiones commonly associated with execution vectors
 TARGET_EXTENSIONS = {".exe", ".dll", ".bat", ".cmd", ".vbs", ".js", ".ps1", ".scr", ".jar", ".py", ".sh", ".src", ".bin", ".com", ".cpl", ".msc", ".hta", ".wsf", ".gadget"}
 
@@ -48,6 +48,12 @@ def scan_directory_executables(directory):
     Scans a specific directory, gathers metadata for executable files,
     and prepares a structured payload optimized for future VirusTotal lookup.
     """
+    policies = read_policies()
+    visibility = policies.get("visibility_controls", {})
+    if not visibility.get("temp_directory_monitoring", True):
+        print("[*] Temp Directory Monitoring disabled by policy. Skipping scan.")
+        return []
+
     scanned_files = []
     path = Path(directory)
 

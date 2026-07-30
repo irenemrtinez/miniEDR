@@ -20,7 +20,7 @@ from enricher import (
 from vt_connector import check_file_hash_vt, VT_API_KEY,VT_BASE_URL
 from file_analyzer import scan_directory_executables, save_files_to_disk
 from remediations import delete_file_from_disk, quarantine_file, _get_or_create_key, restore_file_from_quarantine
-from prevention_policies import prevention_bp
+from prevention_policies import prevention_bp, read_policies
 from ml_detector import MLEnricher
 from collections import Counter
 import datetime
@@ -56,6 +56,10 @@ def process_vt_batch(telemetry_file_path):
     Identifies and triages a batch of up to 4 pending files against VirusTotal.
     Keeps the main enrichment thread decoupled and clean.
     """
+    policies = read_policies()
+    if not policies.get("visibility_controls", {}).get("virustotal_intelligence", True):
+        return
+    
     if not os.path.exists(telemetry_file_path):
         return
 
@@ -237,7 +241,11 @@ def background_enrichment_loop():
                     'num_connections': connections,
                     'is_temp_execution': is_temp_execution,
                     'is_system_user': is_system_user,
-                    'connection_per_thread_ratio': connection_per_thread_ratio
+                    'connection_per_thread_ratio': connection_per_thread_ratio,
+                    # Extended Telemetry properties passed for metadata storage
+                    'cmdline': proc.get('cmdline', 'N/A'),
+                    'parent_name': proc.get('parent_name', 'N/A'),
+                    'loaded_dlls': proc.get('loaded_dlls', [])
                 }
                 baseline_data.append(proc_features)
         except Exception as e:
@@ -250,8 +258,12 @@ def background_enrichment_loop():
     # --- PHASE 2: Main EDR Monitoring and Anomaly Detection Loop ---
     while True:
         try:
+            current_policies = read_policies()
+            visibility = current_policies.get("visibility_controls", {})
+            extended_enabled = visibility.get("extended_process_telemetry", True)
+
             # 1. The agent collects the latest telemetry snapshot
-            snapshot = collect_running_processes()
+            snapshot = collect_running_processes(extended=extended_enabled)
             save_telemetry_to_disk(snapshot, TELEMETRY_FILE)
 
             # 2. The enricher applies heuristic rules to detect suspicious processes
@@ -260,81 +272,87 @@ def background_enrichment_loop():
             alerts.extend(check_process_masquerading(snapshot)) 
             alerts.extend(check_reconnaissance_tools(snapshot))    
             alerts.extend(check_double_extensions(snapshot))  
-            alerts.extend(check_temp_execution(snapshot))
+            if visibility.get("temp_directory_monitoring", True):  # CONTROL 1: Temp Directory Monitoring
+                            alerts.extend(check_temp_execution(snapshot))
             alerts.extend(check_reverse_shell(snapshot))
-            
+
             # --- PHASE 3: ML Anomaly Inference & Dataset Collection (The "Jake" Way) ---
             # === FIX 4: We use the 'ml_enricher' instance to call the predict_anomaly method, not the abstract class ===
-            if ml_enricher.is_trained:
-                print("[*] EDR Background Monitor: Evaluating processes with Behavior ML...")
-                for proc in snapshot:
-                    try:
-                        p_obj = psutil.Process(proc['pid'])
-                        connections = len(p_obj.net_connections())
-                    except Exception:
-                        connections = 0
+            if extended_enabled:
+                if ml_enricher.is_trained:
+                    print("[*] EDR Background Monitor: Evaluating processes with Behavior ML...")
+                    for proc in snapshot:
+                        try:
+                            p_obj = psutil.Process(proc['pid'])
+                            connections = len(p_obj.net_connections())
+                        except Exception:
+                            connections = 0
 
-                    path_lower = str(proc.get('path', '')).lower()
-                    is_temp_execution = 1 if "temp" in path_lower or "downloads" in path_lower else 0
+                        path_lower = str(proc.get('path', '')).lower()
+                        is_temp_execution = 1 if "temp" in path_lower or "downloads" in path_lower else 0
 
-                    user_lower = str(proc.get('username', '')).lower()
-                    is_system_user = 1 if "system" in user_lower or "administrator" in user_lower or "root" in user_lower else 0
+                        user_lower = str(proc.get('username', '')).lower()
+                        is_system_user = 1 if "system" in user_lower or "administrator" in user_lower or "root" in user_lower else 0
 
-                    threads_count = proc.get('num_threads', 1)
-                    threads_safe = threads_count if (threads_count and threads_count > 0) else 1
-                    connection_per_thread_ratio = connections / threads_safe
-                    
-                    # Align dictionary keys with MLEnricher's expected numerical feature columns
-                    live_feature_dict = {
-                        'pid': proc.get('pid'),
-                        'name': proc.get('name'),
-                        'cpu_percent': proc.get('cpu_percent', 0.0),
-                        'memory_percent': proc.get('memory_percent', 0.0),
-                        'num_threads': threads_safe,
-                        'num_connections': connections,
-                        'is_temp_execution': is_temp_execution,
-                        'is_system_user': is_system_user,
-                        'connection_per_thread_ratio': connection_per_thread_ratio
-                    }
-
-                    # Step 5 of Scikit-Learn API: Predict anomalies on new data
-                    is_anomaly = ml_enricher.predict_anomaly(live_feature_dict)
-                    
-                    # Accumulate live data into our historical CSV for future analytical retraining
-                    ml_enricher.save_to_dataset(live_feature_dict, label=1 if is_anomaly else 0)
-
-                    if is_anomaly:
-                        rule_name = "Behavioral Anomaly (IsolationForest)"
-                        proc_name = proc.get('name', 'N/A')
-                        proc_path = proc.get('path', 'N/A')
-
-                        # === EXCLUSION FILTER CHECK ===
-                        # Verify if the anomaly matches a user-defined exclusion rule
-                        if is_excluded(proc_name, rule_name, proc_path):
-                            print(f"[*] ML Anomaly filtered out via active exclusion for: {proc_name}")
-                            continue # Skip generating the alert and continue checking other processes
-
-                        print(f"[!] ML ALERT: Outlier behavior detected on process: {proc_name} (PID: {proc.get('pid')})")
-                        ml_alert = {
-                            "rule": rule_name,
-                            "severity": "HIGH",
-                            "pid": proc.get('pid', 'N/A'),
-                            "name": proc_name,
-                            "path": proc_path,
-                            "user": proc.get('username', 'N/A'),
-                            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
-                            "status": "SUSPICIOUS",
-                            "description": f"Process triggers statistical anomaly boundaries. Features -> CPU: {live_feature_dict['cpu_percent']}%, Memory: {live_feature_dict['memory_percent']}%, Threads: {live_feature_dict['num_threads']}, Connections: {live_feature_dict['num_connections']}."
+                        threads_count = proc.get('num_threads', 1)
+                        threads_safe = threads_count if (threads_count and threads_count > 0) else 1
+                        connection_per_thread_ratio = connections / threads_safe
+                        
+                        # Align dictionary keys with MLEnricher's expected numerical feature columns
+                        live_feature_dict = {
+                            'pid': proc.get('pid'),
+                            'name': proc.get('name'),
+                            'cpu_percent': proc.get('cpu_percent', 0.0),
+                            'memory_percent': proc.get('memory_percent', 0.0),
+                            'num_threads': threads_safe,
+                            'num_connections': connections,
+                            'is_temp_execution': is_temp_execution,
+                            'is_system_user': is_system_user,
+                            'connection_per_thread_ratio': connection_per_thread_ratio
                         }
-                        alerts.append(ml_alert)
 
+                        # Step 5 of Scikit-Learn API: Predict anomalies on new data
+                        is_anomaly = ml_enricher.predict_anomaly(live_feature_dict)
+                        
+                        # Accumulate live data into our historical CSV for future analytical retraining
+                        ml_enricher.save_to_dataset(live_feature_dict, label=1 if is_anomaly else 0)
+
+                        if is_anomaly:
+                            rule_name = "Behavioral Anomaly (IsolationForest)"
+                            proc_name = proc.get('name', 'N/A')
+                            proc_path = proc.get('path', 'N/A')
+
+                            # === EXCLUSION FILTER CHECK ===
+                            # Verify if the anomaly matches a user-defined exclusion rule
+                            if is_excluded(proc_name, rule_name, proc_path):
+                                print(f"[*] ML Anomaly filtered out via active exclusion for: {proc_name}")
+                                continue # Skip generating the alert and continue checking other processes
+
+                            print(f"[!] ML ALERT: Outlier behavior detected on process: {proc_name} (PID: {proc.get('pid')})")
+                            ml_alert = {
+                                "rule": rule_name,
+                                "severity": "HIGH",
+                                "pid": proc.get('pid', 'N/A'),
+                                "name": proc_name,
+                                "path": proc_path,
+                                "user": proc.get('username', 'N/A'),
+                                "timestamp": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
+                                "status": "SUSPICIOUS",
+                                "description": f"Process triggers statistical anomaly boundaries. Features -> CPU: {live_feature_dict['cpu_percent']}%, Memory: {live_feature_dict['memory_percent']}%, Threads: {live_feature_dict['num_threads']}, Connections: {live_feature_dict['num_connections']}."
+                            }
+                            alerts.append(ml_alert)
+            else:
+                print("[*] Extended Process Telemetry / ML Evaluation disabled by policy. Skipping ML inference.")
             # Save alerts to disk (both heuristic detections and ML anomalies)
             alerts.extend(check_virustotal_malicious_files(FILES_TELEMETRY_FILE))
             save_alerts_to_disk(alerts, ALERTS_FILE)
 
             # 3. Dynamic file gathering over the system root path
-            detected_files = scan_directory_executables(target_scan_root)
-            save_files_to_disk(detected_files, output_file=FILES_TELEMETRY_FILE)
+            if visibility.get("temp_directory_monitoring", True):
+                detected_files = scan_directory_executables(target_scan_root)
+                save_files_to_disk(detected_files, output_file=FILES_TELEMETRY_FILE)
+            else:
+                print("[*] Temp Directory File Monitoring disabled by policy. Skipping disk file scan.")
             
             # 4. Check the file telemetry for unscanned files and query VirusTotal
             process_vt_batch(FILES_TELEMETRY_FILE)

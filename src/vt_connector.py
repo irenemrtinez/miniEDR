@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 import requests
 
+from prevention_policies import read_policies
 load_dotenv()
 
 VT_API_KEY = os.getenv("VT_API_KEY")
@@ -14,6 +15,10 @@ def check_file_hash_vt(sha256_hash):
     Queries VirusTotal using a file's SHA256 hash.
     Returns a dictionary with comprehensive threat intelligence metadata.
     """
+    policies = read_policies()
+    if not policies.get("visibility_controls", {}).get("virustotal_intelligence", True):
+        return {"vt_status": "DISABLED_BY_POLICY"}
+
     if not VT_API_KEY:
         print("[!] VirusTotal API key is not set. Skipping VT query.")
         return {"vt_status": "PENDING"}

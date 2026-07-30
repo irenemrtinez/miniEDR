@@ -28,7 +28,7 @@ def get_network_connections():
         pass
     return connections_by_pid
 
-def collect_running_processes():
+def collect_running_processes(extended=True):
     """
     Captures current running processes with high resource efficiency.
     We only fetch the exact attributes we need to save memory and CPU.
@@ -37,9 +37,12 @@ def collect_running_processes():
     
     # Optimization: Map network connections first to cross-reference efficiently
     network_map = get_network_connections()
-    
+
+    attributes = ['pid', 'ppid', 'name', 'username', 'cpu_percent', 'memory_info', 'exe', 'create_time', 'cmdline']
+    if extended:
+        attributes.append('cmdline')
     # Efficient batching: passing attributes directly avoids making individual OS calls
-    for proc in psutil.process_iter(['pid', 'name', 'ppid', 'username', 'cpu_percent', 'memory_info', 'exe', 'create_time']):
+    for proc in psutil.process_iter(attributes):
         try:
             # Extract basic info safely as a dictionary
             info = proc.info
@@ -59,9 +62,39 @@ def collect_running_processes():
             # Delete the complex object so it doesn't crash the JSON writer later
             del info['memory_info']
 
+            # --- EXTENDED PROCESS TELEMETRY ENRICHMENT ---
+            if extended:
+                # 1. Command-line Arguments
+                # Convert list of arguments into a unified execution command string
+                cmdline_list = info.get('cmdline')
+                if cmdline_list and isinstance(cmdline_list, list):
+                    info['cmdline'] = " ".join(cmdline_list)
+                else:
+                    info['cmdline'] = "N/A"
+
+                # 2. Parent Process Details (Parent-Child Process Tree)
+                ppid = info.get('ppid')
+                if ppid and ppid > 0:
+                    try:
+                        parent_proc = psutil.Process(ppid)
+                        info['parent_name'] = parent_proc.name()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        info['parent_name'] = "Unknown / Terminated"
+                else:
+                    info['parent_name'] = "System / Root"
+
+                # 3. Loaded Dynamic Link Libraries (DLLs / Shared Modules)
+                # Fetching loaded memory maps safely to prevent permission crashes
+                try:
+                    # Top 10 loaded modules/DLLs to prevent bloated JSON payloads
+                    memory_maps = proc.memory_maps()
+                    info['loaded_dlls'] = [m.path for m in memory_maps if m.path.endswith('.dll')][:10]
+                except (psutil.AccessDenied, psutil.NoSuchProcess, NotImplementedError, AttributeError):
+                    info['loaded_dlls'] = []
+
             process_list.append(info)
+
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            # Skip processes that no longer exist or we don't have access to
             continue
         
     return process_list
